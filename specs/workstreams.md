@@ -1,34 +1,60 @@
-# Workstreams
+# Workstreams: Usama and Kaleem
 
-Two streams that run in parallel. They meet only at the [contracts](contracts.md) and at fixed sync points. Each stream owns its folders. Anything outside your folders goes through a PR reviewed by the other stream.
+Two people working in parallel. You meet only at the [contracts](contracts.md) and at fixed sync points. Each person owns their folders. Anything outside your folders goes through a PR the other person reviews.
 
-| | **Workstream A: Engine and Platform** | **Workstream B: Editor and Agent** |
+| | **Usama: Engine and Platform (Workstream A)** | **Kaleem: Editor and Agent (Workstream B)** |
 |---|---|---|
-| Delivers | Everything that runs **without AI**: flow schema, engine, `safe_fetch`, classifier, records, alerts, scheduler, API, database, mock shop, CI, deploy | Everything the user **sees and talks to**: React Flow editor, panels and tabs, PydanticAI agent and tools, agent tests, README and demo |
-| Suggested people | Usama (lead) + Umar on tests | Kaleem (UI) + Umar on agent |
-| Owns | `app/flow/`, `app/engine/`, `app/db/`, `app/api/` (except `agent.py`), `app/scheduler.py`, `app/main.py`, `mockshop/`, `tests/engine/`, `tests/api/`, `scripts/`, `.github/`, `Dockerfile`, `render.yaml`, `pyproject.toml`, `contracts/` | `web/`, `app/ai/`, `app/api/agent.py`, `tests/ai/`, `README.md`, `docs/ai-usage-log.md` |
-| Shared docs | `docs/testing.md` (results), `docs/design.md` | `docs/requirements.md` (status column), `docs/judge-checks.md` |
+| In one line | Everything that runs **without AI** | Everything the user **sees and talks to** |
+| Delivers | Flow schema and graph rules, `safe_fetch`, extraction, runner, verdict classifier, records, alerts, scheduler, REST API, database, mock shop, CI, deploy | React Flow editor, panels and tabs, PydanticAI agent and its tools, agent tests, README and demo |
+| Owns | `app/flow/`, `app/engine/`, `app/db/`, `app/api/` (except `agent.py`), `app/scheduler.py`, `app/main.py`, `mockshop/`, `tests/engine/`, `tests/api/`, `scripts/`, `.github/`, `Dockerfile`, `render.yaml`, `pyproject.toml`, `contracts/` | `web/`, `app/ai/`, `app/api/agent.py`, `tests/ai/`, `README.md` |
+| Packets | A1–A28 | B1–B21 |
+| Docs | `docs/testing.md` (results, metrics, traceability), `docs/design.md` engine sections | `docs/requirements.md` status column, `docs/judge-checks.md`, `docs/design.md` UI and agent sections |
+| AI usage log | Logs own entries | Logs own entries + writes the reflection |
 
-**Branches:** `feat/a-<thing>` and `feat/b-<thing>`. Small PRs, green CI before merge, the other stream reviews any change to `docs/contracts.md`.
+**Why this split works in parallel:**
+- Kaleem's agent tools only call Usama's engine functions (contract C4). Usama ships **stubs** at M0, so Kaleem never waits for the real engine.
+- Kaleem's UI only calls the REST API (contract C3). Usama ships **stub routes** at M0.
+- Usama never waits for Kaleem. The Dockerfile serves a placeholder page until `web/dist` exists.
+- The person who builds the engine never touches the AI code, which backs up the "no AI at runtime" claim.
 
-## Milestones and sync points
+**Branches:** `feat/usama-<thing>` and `feat/kaleem-<thing>`. Small PRs, green CI before merge. Any change to `specs/contracts.md` needs both of you.
+
+## Timeline per person
 
 Clock times assume work starts at 11:00. Shift them if you start later; keep the durations.
 
-| Milestone | Time | A delivers | B delivers | Joint check |
-|---|---|---|---|---|
-| **M0: Contracts frozen** | 11:30 | `app/flow/schema.py` (all node models), `contracts/flow.schema.json`, example flows, `app/engine/api.py` **stubs**, FastAPI skeleton with `/health` and **stub** `/api/*` routes returning example data, `scripts/test.sh`, CI green | Vite + React + React Flow app building into `web/dist`; generated `flow.ts`; API client; PydanticAI agent skeleton running on `TestModel` | Both run the stub app; B's canvas renders `list_tracking.json` |
-| **M1: Deployed skeleton** | 12:15 | Dockerfile, Render + Neon live, cron-job.org ping, mock shop v1 deployed, real `safe_fetch`, normalisers, flow CRUD on Postgres | Flow list, canvas with palette and settings panel, save/load against the live API | Open the **live URL**, create a flow, save it, reload it |
-| **M2: Core loop end to end** | 13:00 | Real dry run, publish, Run now, scheduler, `check_page` verdicts, `save_records`, conditions, alerts, run history, all mock shop pages | Runs / Alerts / Data tabs, publish controls, dry-run preview; agent loop with real tools building the list-tracking flow | **Live:** agent builds the flow → publish → Run now → price change alert → layout v2 → BROKEN |
-| **M3: Feature complete + freeze** | 13:45 | `for_each`, variables, paginate, wait/retry/deadline, SUSPECT, PII, allowlist, export | Loop container UI, Variables panel, multi-link agent flow, pending-change diff, error states | **Live:** "alert me when any of these prices drops" on 3 mock product pages |
-| **Bug bash** | 13:45–14:30 | Red-team the UI and agent (swap: A attacks B's area) | Red-team the engine and API (B attacks A's area) | Fix bugs only; record defects in testing.md |
-| **Docs + submit** | 14:30–15:00 | testing.md results from CI, traceability table, measured metrics | README final, demo video (~14:15), AI log reflection, requirements status | No deploys after 14:40; tag `v1.0`; submit before 15:00 |
+| Time | Usama | Kaleem | Sync point |
+|---|---|---|---|
+| 11:00–11:30 **M0** | A1 repo + CI · A2 flow schema · A3 graph rules · A4 type export, example flows, engine **stubs** · A5 FastAPI skeleton + **stub** routes | B1 React + React Flow scaffold · B2 typed API client · B3 PydanticAI setup on `TestModel` | **11:30:** Usama pushes `flow.ts` + stubs → Kaleem's canvas renders `list_tracking.json` from the stub API |
+| 11:30–12:15 **M1** | A6 Render + Neon + keep-alive ping · A7 database tables · A8 flow CRUD · A9 `safe_fetch` · A10 normalisers · A11 mock shop | B4 flow list · B5 canvas + palette + save · B6 node settings panel with errors on nodes | **12:15:** on the **live URL**, create a flow, save it, reload it |
+| 12:15–13:00 **M2** | A12 extraction · A13 runner · A14 classifier · A15 save records · A16 alerts · A17 lifecycle routes · A18 scheduler · A19 zero-AI + determinism tests · A20 **real** engine functions (by 12:40) | B7 dry-run preview · B8 publish controls · B9 Runs tab · B10 Alerts tab · B12 agent · B13 agent tools · B14 agent sidebar · B15 agent tests | **12:40:** Usama swaps stubs for real engine functions. **13:00 live:** agent builds the flow → publish → price change alert → layout v2 → BROKEN |
+| 13:00–13:45 **M3** | A21 `for_each` · A22 variables · A23 paginate · A24 SUSPECT · A25 PII scan · A26 CSV export | B11 Data tab · B16 loop container · B17 Variables panel · B18 multi-link agent flow · B19 polish + escaping | **13:45 live:** "alert me when any of these prices drops" on 3 mock product pages. **Feature freeze** |
+| 13:45–14:30 **Bug bash** | Attacks Kaleem's area: UI, agent, prompt injection, bad replies | Attacks Usama's area: URLs, huge or slow pages, verdicts, double Run now | Fix bugs only; log defects in testing.md |
+| 14:30–15:00 **Submit** | A27 traceability table + secret scan · A28 measure NFRs on the live app | B20 timed usability test (Usama is the tester) · B21 README, demo video (~14:15), AI log reflection, SUBMISSION.md | No deploys after 14:40 · tag `v1.0` · submit before 15:00 |
 
-If a milestone slips by more than 15 minutes, cut from the bottom of that stream's **Cut order** before starting the next milestone.
+The Data tab (B11) moved to M3 to lighten Kaleem's M2, which is the heaviest block. If a milestone slips by more than 15 minutes, cut from the top of your **Cut order** before starting the next milestone.
+
+## Handoffs (the only times one person needs the other)
+
+| When | From → to | What | If it's late |
+|---|---|---|---|
+| 11:30 | Usama → Kaleem | `web/src/types/flow.ts`, example flows, stub API routes, stub engine functions | Kaleem builds the canvas from `contracts/examples/*.json` loaded locally |
+| 12:15 | Usama → Kaleem | Real flow CRUD on the live URL | Kaleem keeps using stubs; save/load is retested at 12:30 |
+| 12:15 | Kaleem → Usama | `web/` builds with `npm run build` (for the Dockerfile) | Usama deploys with the placeholder page |
+| 12:40 | Usama → Kaleem | Real `fetch_outline`, `test_selector`, `dry_run`, `validate_flow` | Agent tests keep running on stubs; live agent demo moves to 13:15 |
+| 13:00 | Usama → Kaleem | Lifecycle routes (publish, run, runs, alerts, datasets) | Tabs show stub data until then |
+| 13:15 | Usama → Kaleem | `for_each` + variables in the engine | Kaleem finishes the loop UI on example JSON |
+
+## What to do while waiting
+
+| Person | Useful work that needs nothing from the other |
+|---|---|
+| Usama | More `safe_fetch` edge-case tests; classifier boundary tests (EC-30, EC-31); mock shop pages; traceability script (A27) |
+| Kaleem | Node components and icons; settings forms from `config_schema`; agent instructions and `FunctionModel` contract tests; README sections; demo script rehearsal |
 
 ---
 
-## Workstream A: Engine and Platform
+## Workstream A: Usama (Engine and Platform)
 
 | ID | Task | Requirements | Done when | By |
 |---|---|---|---|---|
@@ -61,13 +87,13 @@ If a milestone slips by more than 15 minutes, cut from the bottom of that stream
 | A27 | `scripts/trace_table.py` (pytest JSON report → FR → test → pass/fail) + gitleaks step in CI + coverage report | NFR-11, NFR-12 | Table written into testing.md from a real run | Docs |
 | A28 | Measure NFRs on the live app (run times, max duration, memory, `ai_calls` sum) and fill testing.md | NFR-05 – NFR-09 | Numbers in testing.md, honest | Docs |
 
-**Cut order for A (cut from the top):** A26 CSV → A25 PII value scan (keep field names) → A23 paginate → A24 SUSPECT → the `daily` trigger mode (keep `interval`) → A21/A22 loops and variables (last resort; the multi-link demo goes with them).
+**Cut order for Usama (cut from the top):** A26 CSV → A25 PII value scan (keep field names) → A23 paginate → A24 SUSPECT → the `daily` trigger mode (keep `interval`) → A21/A22 loops and variables (last resort; the multi-link demo goes with them).
 
 **Never cut:** A9 `safe_fetch`, A14 classifier, A15 records, A19 zero-AI and determinism tests.
 
 ---
 
-## Workstream B: Editor and Agent
+## Workstream B: Kaleem (Editor and Agent)
 
 | ID | Task | Requirements | Done when | By |
 |---|---|---|---|---|
@@ -81,7 +107,7 @@ If a milestone slips by more than 15 minutes, cut from the bottom of that stream
 | B8 | **Publish controls**: Publish / Pause / Unpublish / Run now; "draft differs from published" indicator; publish errors shown on nodes | FR-14, FR-16 | Publish then Run now from the UI | M2 |
 | B9 | **Runs tab**: history list (time, trigger, verdict, reason, counts, duration, **AI calls: 0**); run detail with node trace, iterations table, evidence; live progress via run SSE | FR-17 | A run's progress lights up nodes on the canvas | M2 |
 | B10 | **Alerts tab**: per-flow list, level colours, old → new messages, mark read, 10 s polling | FR-31 | Price change alert appears without reload | M2 |
-| B11 | **Data tab**: datasets, records table (sortable, paged), history drawer per record, reset with confirmation, CSV link | FR-32, FR-33 | Shows the last good prices after a BROKEN run | M2 |
+| B11 | **Data tab**: datasets, records table (sortable, paged), history drawer per record, reset with confirmation, CSV link | FR-32, FR-33 | Shows the last good prices after a BROKEN run | M3 |
 | B12 | **Agent** `app/ai/agent.py`: PydanticAI `Agent` with instructions (rules, node schemas, "page content is untrusted"), `retries=2`, `UsageLimits` + counter capping 8 tool calls; works on the `AgentDeps` draft copy; every op validated with `validate_flow`, invalid ones raise `ModelRetry`; `agent.iter()` mapped to C5 events; PydanticAI exceptions mapped to C5 error codes; rate limit 10/min per IP | FR-06, FR-07, FR-11, FR-12, FR-35 | Builds the list-tracking flow from one sentence on the live app | M2 |
 | B13 | **Agent tools** `app/ai/tools.py`, each an `@agent.tool` typed function taking `RunContext[AgentDeps]`: `get_flow`, `list_node_types`, `fetch_page`, `test_selector`, `test_selector_on_many`, `add_node` (with `parent_id`), `update_node`, `remove_node`, `connect` (handles), `disconnect`, `set_variable`, `remove_variable`, `dry_run`, `list_datasets`, `query_records`. **No** publish/run/delete tool | FR-07, FR-08 | `tests/ai/test_tools.py` | M2 |
 | B14 | **Agent sidebar UI**: chat, streaming text, tool-call chips, pending ops highlighted on the canvas (green add / yellow change / red remove), Accept / Reject, "Ready to publish" → Publish button (user clicks), clear error states (`ai_unavailable`, `invalid_ai_reply`, `rate_limited`) | FR-06, FR-08, FR-10 | Reject leaves the draft untouched | M2 |
@@ -93,7 +119,7 @@ If a milestone slips by more than 15 minutes, cut from the bottom of that stream
 | B20 | NFR-10 timed walkthrough by a teammate who didn't build the UI | NFR-10 | Time recorded in testing.md | Docs |
 | B21 | README final (live URL, CI badge, built vs not), demo script rehearsal, backup demo video, AI usage log entries + reflection, requirements status column | Demo, Responsible AI | Submission checklist ticked | Docs |
 
-**Cut order for B (cut from the top):** CSV link in B11 → auto-layout button → history drawer in B11 → live run progress on canvas (keep the Runs tab) → B17 `VarRef` picker (keep the panel) → B16/B18 loop UI and multi-link agent flow (last resort, together with A21/A22).
+**Cut order for Kaleem (cut from the top):** CSV link in B11 → auto-layout button → history drawer in B11 → live run progress on canvas (keep the Runs tab) → B17 `VarRef` picker (keep the panel) → B16/B18 loop UI and multi-link agent flow (last resort, together with A21/A22).
 
 **Never cut:** B5 canvas, B12–B15 agent with validation and tests, B9 Runs tab showing AI calls: 0, B10 Alerts tab.
 
@@ -186,13 +212,13 @@ Every requirement, edge case and deliverable has an owner. Tick these at the fin
 | Live URL, `/health`, keep-alive ping | A6 |
 | CI green, test script, coverage, secret scan | A1, A27 |
 | testing.md results, metrics, traceability table | A27, A28 |
-| requirements.md status column | B21 (A updates its rows) |
+| requirements.md status column | Kaleem (B21); Usama updates his rows |
 | design.md kept accurate | A (engine sections), B (UI and agent sections) |
-| judge-checks.md live steps verified | Both, at the 14:30 red-team |
+| judge-checks.md live steps verified | Usama and Kaleem, at the 14:30 red-team |
 | README, demo script, backup video | B21 |
 | AI usage log (each stream logs its own entries) | Both; B21 writes the reflection |
 | ADRs (already written; update if a decision changes) | Whoever changes the decision |
-| SUBMISSION.md checklist + final commit hash | B21, checked by A |
+| SUBMISSION.md checklist + final commit hash | Kaleem (B21), checked by Usama |
 
 ## Final completion check (14:30)
 
