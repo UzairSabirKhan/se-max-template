@@ -2,7 +2,7 @@
 // Used while Workstream A's backend is still stubs (opt in with VITE_API_MODE=mock; the default is live).
 import type { Api, AgentRequest } from "../lib/api";
 import { ApiError } from "../lib/errors";
-import { applyOps, clone, isVarRef, newId, stepNumbers, validateFlow } from "../lib/flow";
+import { applyOps, clone, isVarRef, knownFields, newId, stepNumbers, validateFlow } from "../lib/flow";
 import type { AgentEvent, Flow, FlowDetail, FlowNode, FlowOp, Item, RunReport, Verdict } from "../types/contracts";
 import { NODE_META } from "../lib/nodeMeta";
 import { PRODUCTS, SHOP, seedDb, starterFlow, type MockDb } from "./fixtures";
@@ -308,6 +308,21 @@ export function createMockApi(): Api {
       await latency();
       db.flows = db.flows.filter((f) => f.id !== id);
       save();
+    },
+    async dataSelector(_id, draft, nodeId) {
+      // Mock only: every extracted field, no upstream ordering (the real API lists only earlier steps).
+      await latency();
+      const fields = knownFields(draft).map((f) => ({ name: f.name, type: f.type as any, ops: [], sample: null, source_node_id: null }));
+      const hasSave = draft.nodes.some((n) => n.type === "save_records");
+      return {
+        node_id: nodeId,
+        groups: [
+          ...(fields.length ? [{ source_node_id: "", source_type: "extract_list", label: "Extracted fields", fields }] : []),
+          ...(hasSave ? [{ source_node_id: "", source_type: "save_records", label: "Save records (changes since the last run)",
+                           fields: [{ name: "change", type: "change" as const, ops: ["is_new", "is_removed"], sample: null, source_node_id: null }] }] : []),
+        ],
+        variables: draft.variables.map((v) => ({ name: v.name, type: v.type, sample: v.value })),
+      };
     },
     async dryRun(id, draft) {
       await sleep(900);

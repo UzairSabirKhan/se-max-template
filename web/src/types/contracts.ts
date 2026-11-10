@@ -198,3 +198,17 @@ export type AgentEvent =
   | { event: "done"; data: { tool_calls: number } };
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
+
+/** POST /api/flows/{id}/data-selector: what one step can use from the steps BEFORE it. */
+export type SelectorField = {
+  name: string;                       // store this plain name in the setting (no templates)
+  type: "text" | "price" | "int" | "url" | "date" | "stock" | "change";
+  ops: string[];                      // condition operators allowed for this field at this step
+  sample: unknown;                    // a value from the flow's latest run, or null
+  source_node_id: string | null;
+};
+export type DataSelector = {
+  node_id: string;
+  groups: { source_node_id: string; source_type: string; label: string; fields: SelectorField[] }[];
+  variables: { name: string; type: string; sample: unknown }[];
+};

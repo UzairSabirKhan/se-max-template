@@ -6,6 +6,10 @@ import { isVarRef, knownFields, stepNumbers } from "../lib/flow";
 import { NODE_META, TONE } from "../lib/nodeMeta";
 import { useEditor } from "../store/editor";
 import type { Flow, FlowNode, Issue, VariableType } from "../types/contracts";
+import { DataPanel } from "./DataPanel";
+import { sampleText, useStepData } from "./useStepData";
+
+type StepData = ReturnType<typeof useStepData>;
 
 const FIELD_TYPES = ["text", "price", "int", "url", "date", "stock"] as const;
 
@@ -95,12 +99,17 @@ function FieldsEditor({ node, set, issues, withAttr = true }: { node: FlowNode; 
   );
 }
 
-function ConditionEditor({ node, set, flow, issues }: { node: FlowNode; set: (p: Record<string, any>) => void; flow: Flow; issues: Issue[] }) {
+function ConditionEditor({ node, set, flow, issues, upstream }: { node: FlowNode; set: (p: Record<string, any>) => void; flow: Flow; issues: Issue[]; upstream?: StepData }) {
   const rules: any[] = node.config.rules ?? [];
-  const fields = knownFields(flow);
+  // Only fields from EARLIER steps (data selector); the whole-flow list is a fallback while it loads.
+  const fields: { name: string; type: string; sample?: unknown; ops?: string[] }[] = upstream?.data ? upstream.fields : knownFields(flow);
   const tracked = new Set<string>(flow.nodes.filter((n) => n.type === "save_records").flatMap((n) => n.config.track_fields ?? []));
-  const hasSave = flow.nodes.some((n) => n.type === "save_records");
+  const hasSave = upstream?.data ? upstream.hasChange : flow.nodes.some((n) => n.type === "save_records");
   const typeOf = (f: string) => (f === "change" ? "change" : fields.find((x) => x.name === f)?.type ?? "text");
+  const opsOf = (f: string) => {
+    const fromServer = fields.find((x) => x.name === f)?.ops;
+    return f !== "change" && fromServer?.length ? fromServer : opsFor(typeOf(f), tracked.has(f));
+  };
   const update = (i: number, patch: Record<string, any>) => set({ rules: rules.map((r, j) => (j === i ? { ...r, ...patch } : r)) });
   return (
     <div className="space-y-3">
@@ -110,13 +119,13 @@ function ConditionEditor({ node, set, flow, issues }: { node: FlowNode; set: (p:
       <div className="space-y-2">
         {rules.map((r, i) => {
           const ft = typeOf(r.field);
-          const ops = opsFor(ft, tracked.has(r.field));
+          const ops = opsOf(r.field);
           return (
             <div key={i} className="space-y-1.5 rounded-lg border border-line bg-zinc-50/60 p-2.5">
               <div className="flex gap-1.5">
-                <Select value={r.field} onChange={(e) => update(i, { field: e.target.value, op: opsFor(typeOf(e.target.value), tracked.has(e.target.value))[0], value: undefined })} className="h-8 flex-1" aria-label="Field">
+                <Select value={r.field} onChange={(e) => update(i, { field: e.target.value, op: opsOf(e.target.value)[0], value: undefined })} className="h-8 flex-1" aria-label="Field">
                   {hasSave && <option value="change">change (new / removed)</option>}
-                  {fields.map((f) => <option key={f.name} value={f.name}>{f.name} · {f.type}</option>)}
+                  {fields.map((f) => <option key={f.name} value={f.name}>{f.name} · {f.type}{sampleText(f.sample) ? ` · e.g. ${sampleText(f.sample)}` : ""}</option>)}
                   {!fields.some((f) => f.name === r.field) && r.field !== "change" && <option value={r.field}>{r.field || "pick a field"}</option>}
                 </Select>
                 <IconButton label="Remove rule" onClick={() => set({ rules: rules.filter((_, j) => j !== i) })} className="size-8 hover:text-red-600"><Trash2 className="size-3.5" /></IconButton>
@@ -143,12 +152,12 @@ function ConditionEditor({ node, set, flow, issues }: { node: FlowNode; set: (p:
   );
 }
 
-function Form({ node, flow, issues }: { node: FlowNode; flow: Flow; issues: Issue[] }) {
+function Form({ node, flow, issues, upstream }: { node: FlowNode; flow: Flow; issues: Issue[]; upstream?: StepData }) {
   const updateConfig = useEditor((s) => s.updateConfig);
   const c = node.config;
   const set = (patch: Record<string, any>) => updateConfig(node.id, { ...c, ...patch });
   const e = (k: string) => errFor(issues, `config.${k}`);
-  const fields = knownFields(flow);
+  const fields: { name: string; type: string }[] = upstream?.data ? upstream.fields : knownFields(flow);
 
   switch (node.type) {
     case "trigger":
@@ -321,7 +330,7 @@ function Form({ node, flow, issues }: { node: FlowNode; flow: Flow; issues: Issu
         </div>
       );
     case "condition":
-      return <ConditionEditor node={node} set={set} flow={flow} issues={issues} />;
+      return <ConditionEditor node={node} set={set} flow={flow} issues={issues} upstream={upstream} />;
     case "wait":
       return (
         <Field label="Seconds" hint="1 to 10. Requests to one site are already spaced at least 2 s apart.">
@@ -363,6 +372,7 @@ export function SettingsPanel({ onTestNode }: { onTestNode: (id: string) => void
   const selectedId = useEditor((s) => s.selectedId);
   const allIssues = useEditor((s) => s.issues);
   const select = useEditor((s) => s.select);
+  const stepData = useStepData(selectedId);
   const node = draft.nodes.find((n) => n.id === selectedId);
   if (!node) return null;
   const meta = NODE_META[node.type];
@@ -395,7 +405,8 @@ export function SettingsPanel({ onTestNode }: { onTestNode: (id: string) => void
           </div>
         )}
         <p className="text-[13px] text-muted">{meta.blurb}.</p>
-        <Form node={node} flow={draft} issues={issues} />
+        {!["trigger", "fetch_page", "extract_list"].includes(node.type) && <DataPanel data={stepData} />}
+        <Form node={node} flow={draft} issues={issues} upstream={stepData} />
       </div>
       {node.type !== "trigger" && !meta.disabled && (
         <div className="border-t border-line p-3">

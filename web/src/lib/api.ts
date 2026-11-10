@@ -3,6 +3,7 @@ import type {
   AgentEvent,
   Alert,
   ApiErrorBody,
+  DataSelector,
   ChatTurn,
   DataRecord,
   Dataset,
@@ -31,6 +32,7 @@ export interface Api {
   saveFlow(id: string, body: { name?: string; draft: Flow }): Promise<FlowDetail>;
   deleteFlow(id: string): Promise<void>;
   dryRun(id: string, draft: Flow, until_node?: string): Promise<RunReport>;
+  dataSelector(id: string, draft: Flow, nodeId: string): Promise<DataSelector>;
   publish(id: string): Promise<FlowDetail>;
   pause(id: string): Promise<FlowDetail>;
   unpublish(id: string): Promise<FlowDetail>;
@@ -81,6 +83,7 @@ function createLiveApi(): Api {
     saveFlow: (id, body) => req("PUT", `/api/flows/${id}`, body),
     deleteFlow: (id) => req("DELETE", `/api/flows/${id}`),
     dryRun: (id, draft, until_node) => req("POST", `/api/flows/${id}/dry-run`, { draft, until_node }),
+    dataSelector: (id, draft, nodeId) => req("POST", `/api/flows/${id}/data-selector`, { draft, node_id: nodeId }),
     publish: (id) => req("POST", `/api/flows/${id}/publish`),
     pause: (id) => req("POST", `/api/flows/${id}/pause`),
     unpublish: (id) => req("POST", `/api/flows/${id}/unpublish`),
