@@ -20,22 +20,18 @@ The user is a small seller or shopper who wants to know when competitors' prices
 ## How it works
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph BUILD["① Build once, with AI"]
-        direction TB
-        A["You describe what to watch"] --> B["Assistant proposes the steps<br/>(tests every selector first)"]
-        B --> C["You review and Accept"]
-        C --> D["Publish<br/>(a test run must pass)"]
+        direction LR
+        A["Describe what<br/>to watch"] --> B["Assistant proposes steps<br/>and tests every selector"] --> C["You review<br/>and Accept"] --> D["Publish<br/>(test run must pass)"]
     end
     subgraph RUN["② Every run, zero AI"]
-        direction TB
-        E["Schedule or Run now"] --> F["Fetch pages safely"]
-        F --> G{"Check page"}
-        G -->|healthy| H["Save records<br/>new · changed · removed"]
-        H --> I["Conditions"] --> J["Alerts<br/>Rs 1,250 → Rs 1,099"]
-        G -->|layout changed or blocked| K["Site changed alert<br/>nothing stored"]
+        direction LR
+        E["Schedule or<br/>Run now"] --> F["Fetch pages<br/>safely"] --> G{"Check page"}
+        G -->|healthy| H["Save records<br/>new · changed · removed"] --> I["Conditions"] --> J["Alert<br/>Rs 1,250 → Rs 1,099"]
+        G -->|layout changed<br/>or blocked| K["Site changed alert<br/>nothing stored"]
     end
-    D --> E
+    BUILD --> RUN
 ```
 
 - **AI builds, code runs.** The assistant only edits a draft through typed tools; every edit is validated and shown for you to accept. It cannot publish, run or delete. Published runs never call AI (`ai_calls: 0` on every run, proven by a test).
