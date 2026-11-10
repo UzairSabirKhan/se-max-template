@@ -110,6 +110,9 @@ async def fetch_outline(url: str) -> str:
 
 async def test_selector(url: str, selector: str, attr: str | None = None) -> dict[str, Any]:
     """How many elements match a CSS selector, and up to 5 sample values (text, or `attr`). REAL."""
+    if selector.strip() == ":scope":
+        return {"count": 0, "samples": [], "note": ":scope means the item element itself. It only works as a "
+                "field selector inside extract_list; test the base_selector instead (with attr for its link)."}
     tree = LexborHTMLParser(await _page_html(url))
     try:
         nodes = tree.css(selector)

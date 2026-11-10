@@ -109,6 +109,20 @@ Selector = Annotated[
     StringConstraints(min_length=1, max_length=MAX_SELECTOR_LEN),
     AfterValidator(_check_selector),
 ]
+# A field may use ":scope" to read its own item element (e.g. the item box is itself the link).
+# selectolax can't parse ":scope", so the extractor handles it; only fields accept it.
+SELF_SELECTOR = ":scope"
+
+
+def _check_field_selector(value: str) -> str:
+    return value if value == SELF_SELECTOR else _check_selector(value)
+
+
+FieldSelector = Annotated[
+    str,
+    StringConstraints(min_length=1, max_length=MAX_SELECTOR_LEN),
+    AfterValidator(_check_field_selector),
+]
 HttpUrlStr = Annotated[
     str, StringConstraints(min_length=1, max_length=MAX_URL_LEN), AfterValidator(_check_http_url)
 ]
@@ -196,7 +210,7 @@ class Variable(Strict):
 # ---------------------------------------------------------------------------
 class FieldSpec(Strict):
     name: Name
-    selector: Selector
+    selector: FieldSelector
     attr: AttrName | None = None
     type: FieldType
     required: bool = False

@@ -33,7 +33,8 @@ class Item:
 
 
 def _raw_value(node: LexborNode, selector: str, attr: str | None) -> str | None:
-    found = node.css_first(selector)
+    # ":scope" = the item element itself (selectolax can't parse it, so it never reaches css_first).
+    found = node if selector == ":scope" else node.css_first(selector)
     if found is None:
         return None
     if attr:

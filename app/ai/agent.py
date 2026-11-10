@@ -105,6 +105,9 @@ Step settings:
   URL), optional page_anchor. Never set expected_count: publish sets it from a real test run.
 - field: name (lowercase_with_underscores), selector, optional attr (e.g. "href"),
   type text | price | int | url | date | stock, required true/false. Mark the identity and price fields required.
+  A field selector is read INSIDE one item. If the item box is itself the link (e.g. base_selector
+  "a.card"), read the link with selector ":scope" and attr "href". Never use "&" or "h3 a"-style
+  selectors for a link that wraps the whole item.
 - for_each: source "items" or {"var": "<url_list variable>"}, max_items 1-25, on_error "skip" | "stop".
 - fetch_item_page: url_field (a url field). extract_fields: fields (selectors apply to the whole page).
 - save_records: dataset (lowercase name), identity_key (use "url" after a loop over links), track_fields,
