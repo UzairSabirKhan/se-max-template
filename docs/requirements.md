@@ -42,7 +42,7 @@ Status: `Planned`, then `In progress`, then `Done` (with a test passing in CI), 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
 | FR-06 | A sidebar agent sees the open flow and the user's selection and edits the **draft** through typed tools. Its edits appear on the canvas as pending changes the user accepts or rejects | Must | Planned |
-| FR-07 | Agent tools: `get_flow`, `list_node_types`, `fetch_page`, `test_selector`, `test_selector_on_many`, `add_node`, `update_node`, `remove_node`, `connect`, `disconnect`, `set_variable`, `remove_variable`, `dry_run`, `list_datasets`, `query_records`. At most 8 tool calls per message | Must | Planned |
+| FR-07 | Agent tools: `get_flow`, `list_node_types`, `fetch_page`, `test_selector`, `test_selector_on_many`, `add_node`, `add_steps`, `update_node`, `remove_node`, `connect`, `disconnect`, `set_variable`, `remove_variable`, `dry_run`, `list_datasets`, `query_records`. At most 8 tool calls per message; `add_steps` adds several steps and their links in one call so a whole flow fits | Must | Planned |
 | FR-08 | The agent has no tool to publish, run, pause or delete, and none to execute code. Only the user can publish | Must | Planned |
 | FR-09 | The agent uses Gemini (`AI_MODEL`) with automatic fallback to Claude (`AI_FALLBACK_MODEL`) when the primary errors or is rate-limited (PydanticAI `FallbackModel`) | Should | Planned |
 | FR-10 | If AI is unavailable, the sidebar shows "AI service is unavailable, please try again". Manual editing, dry runs and published flows keep working | Must | Planned |

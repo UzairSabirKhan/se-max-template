@@ -2,8 +2,9 @@
 
 Every tool takes `RunContext[AgentDeps]` and works on `ctx.deps.draft`, a private copy of the user's
 draft. Edits are proposals: each one is checked with the engine's `parse_flow(draft=True)` before it
-is kept, the cleaned-up flow it returns becomes the new working copy, and the edit goes to the
-browser as a C5 `flow_ops` event for the user to accept or reject. Nothing here saves anything.
+is kept, and the cleaned-up flow it returns becomes the new working copy. Kept edits collect in
+`deps.ops`; the agent sends them to the browser as one C5 `flow_ops` event when the run finishes
+cleanly, for the user to accept or reject. Nothing here saves anything.
 
 A rejected edit raises `ModelRetry` with the validation issues, so the model can correct itself
 (bounded by the agent's `retries`). The working copy is unchanged when that happens.
@@ -19,6 +20,7 @@ import secrets
 import string
 from typing import Any, Literal
 
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import ModelRetry, RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
@@ -52,6 +54,7 @@ MAX_PAGE_CHARS = 30_000
 MAX_SAMPLE_CHARS = 160
 MAX_MANY_URLS = 5
 MAX_RECORDS = 20
+MAX_BATCH_STEPS = 15
 
 _ID_CHARS = string.ascii_lowercase + string.digits
 
@@ -127,10 +130,11 @@ def apply_op(flow: dict[str, Any], op: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-async def _propose(deps: AgentDeps, ops: list[dict[str, Any]]) -> dict[str, Any]:
-    """Validate ops against the working copy; keep them only if the draft stays valid.
+def _propose(deps: AgentDeps, ops: list[dict[str, Any]]) -> dict[str, Any]:
+    """Validate ops against the working copy, all or nothing; keep them only if the draft stays valid.
 
     Returns the normalised flow. Raises ModelRetry (working copy untouched) if the engine refuses.
+    The kept ops are not sent here: a failed run must not leave half a proposal in the browser.
     """
     candidate = deps.draft
     for op in ops:
@@ -141,7 +145,6 @@ async def _propose(deps: AgentDeps, ops: list[dict[str, Any]]) -> dict[str, Any]
     kept = [_as_kept(op, normalised) for op in ops]
     deps.draft = normalised
     deps.ops.extend(kept)
-    await deps.emit("flow_ops", {"ops": kept})
     return normalised
 
 
@@ -261,24 +264,132 @@ async def add_node(
     """
     deps = ctx.deps
     deps.count_tool_call()
+    _check_new_step(deps.draft, type)
+    if parent_id is not None and not _is_loop(deps.draft, parent_id):
+        raise ModelRetry(f"parent_id {parent_id!r} is not a Loop (for_each) step in this flow.")
+    node = _new_node(type, config, parent_id, _ids(deps.draft))
+    _propose(deps, [{"op": "add_node", "node": node}])
+    return f"Added {type} step {node['id']}."
+
+
+class StepSpec(BaseModel):
+    """One new step for add_steps."""
+
+    model_config = ConfigDict(extra="forbid")
+    ref: str = Field(min_length=1, max_length=32, description="Your own short name for the step, e.g. 'fetch'")
+    type: NodeType
+    config: dict[str, Any] = Field(default_factory=dict)
+    parent: str | None = Field(None, description="ref or id of a Loop (for_each) step to place this step inside")
+
+
+class LinkSpec(BaseModel):
+    """One link for add_steps. source and target are refs of new steps or ids of existing ones."""
+
+    model_config = ConfigDict(extra="forbid")
+    source: str
+    target: str
+    source_handle: SourceHandle | None = None
+    target_handle: Literal["next"] | None = None
+
+
+async def add_steps(
+    ctx: RunContext[AgentDeps],
+    steps: list[StepSpec],
+    links: list[LinkSpec] | None = None,
+    unlink: list[LinkSpec] | None = None,
+) -> dict[str, Any]:
+    """Add several steps and their links in ONE call, all or nothing. Prefer this over add_node + connect.
+
+    Give each new step a `ref`; use refs (or existing step ids) in `links` and `parent`.
+    `unlink` removes existing links first, e.g. the starter link from the trigger to Check page.
+    Returns the id given to each ref.
+    """
+    deps = ctx.deps
+    deps.count_tool_call()
+    links, unlink = links or [], unlink or []
+    if not steps and not links and not unlink:
+        raise ModelRetry("add_steps needs at least one step or link.")
+    if len(steps) > MAX_BATCH_STEPS:
+        raise ModelRetry(f"At most {MAX_BATCH_STEPS} steps per call.")
+    existing = {n["id"]: n for n in deps.draft.get("nodes", [])}
+    refs = [spec.ref for spec in steps]
+    if len(set(refs)) != len(refs):
+        raise ModelRetry("Each new step needs its own ref.")
+    if clash := set(refs) & set(existing):
+        raise ModelRetry(f"Refs {sorted(clash)} are already step ids; pick other refs.")
+
+    taken = _ids(deps.draft)
+    ids: dict[str, str] = {}
+    for spec in steps:
+        _check_new_step(deps.draft, spec.type)
+        ids[spec.ref] = _new_id("n_", taken)
+        taken.add(ids[spec.ref])
+    types = {**{nid: n["type"] for nid, n in existing.items()}, **{ids[spec.ref]: spec.type for spec in steps}}
+
+    def resolve(name: str) -> str:
+        nid = ids.get(name, name)
+        if nid not in types:
+            raise ModelRetry(f"{name!r} is neither a new step's ref nor an existing step id.")
+        return nid
+
+    ops: list[dict[str, Any]] = []
+    for link in unlink:
+        source, target = resolve(link.source), resolve(link.target)
+        matches = [
+            e
+            for e in deps.draft.get("edges", [])
+            if e["source"] == source
+            and e["target"] == target
+            and (link.source_handle is None or e.get("sourceHandle") == link.source_handle)
+        ]
+        if not matches:
+            raise ModelRetry(f"There is no link from {link.source} to {link.target} to remove.")
+        ops += [{"op": "remove_edge", "id": e["id"]} for e in matches]
+    for spec in steps:
+        parent = resolve(spec.parent) if spec.parent else None
+        if parent is not None and types[parent] != "for_each":
+            raise ModelRetry(f"parent {spec.parent!r} of {spec.ref!r} is not a Loop (for_each) step.")
+        node = _new_node(spec.type, spec.config, parent, taken)
+        node["id"] = ids[spec.ref]
+        ops.append({"op": "add_node", "node": node})
+    for link in links:
+        edge: dict[str, Any] = {
+            "id": _new_id("e_", taken),
+            "source": resolve(link.source),
+            "target": resolve(link.target),
+        }
+        taken.add(edge["id"])
+        if link.source_handle:
+            edge["sourceHandle"] = link.source_handle
+        if link.target_handle:
+            edge["targetHandle"] = link.target_handle
+        ops.append({"op": "add_edge", "edge": edge})
+    _propose(deps, ops)
+    return {"added": len(steps), "linked": len(links), "unlinked": len(unlink), "ids": ids}
+
+
+def _check_new_step(draft: dict[str, Any], type: str) -> None:
     if type in _BROWSER_TYPES:
         raise ModelRetry(f"{type} needs a real browser and is not available. Use static steps only.")
-    if type in _REQUIRED_TYPES and any(n["type"] == type for n in deps.draft.get("nodes", [])):
+    if type in _REQUIRED_TYPES and any(n["type"] == type for n in draft.get("nodes", [])):
         raise ModelRetry(f"The flow already has its {type} step. Change it with update_node instead.")
-    if parent_id is not None:
-        parent = _node(deps.draft, parent_id)
-        if parent is None or parent["type"] != "for_each":
-            raise ModelRetry(f"parent_id {parent_id!r} is not a Loop (for_each) step in this flow.")
+
+
+def _is_loop(draft: dict[str, Any], node_id: str) -> bool:
+    node = _node(draft, node_id)
+    return node is not None and node["type"] == "for_each"
+
+
+def _new_node(type: str, config: dict[str, Any], parent_id: str | None, taken: set[str]) -> dict[str, Any]:
     node: dict[str, Any] = {
-        "id": _new_id("n_", _ids(deps.draft)),
+        "id": _new_id("n_", taken),
         "type": type,
         "position": {"x": 0, "y": 0},  # the editor lays the graph out
         "config": config,
     }
     if parent_id:
         node["parentId"] = parent_id
-    await _propose(deps, [{"op": "add_node", "node": node}])
-    return f"Added {type} step {node['id']}."
+    return node
 
 
 async def update_node(ctx: RunContext[AgentDeps], id: str, patch: dict[str, Any]) -> str:
@@ -290,7 +401,7 @@ async def update_node(ctx: RunContext[AgentDeps], id: str, patch: dict[str, Any]
         raise ModelRetry(f"There is no step {id!r}. Call get_flow to see the step ids.")
     config = {**node.get("config", {}), **patch}
     config = {k: v for k, v in config.items() if v is not None}
-    await _propose(deps, [{"op": "update_node", "id": id, "config": config}])
+    _propose(deps, [{"op": "update_node", "id": id, "config": config}])
     return f"Updated {node['type']} step {id}."
 
 
@@ -308,7 +419,7 @@ async def remove_node(ctx: RunContext[AgentDeps], id: str) -> str:
         {"op": "remove_edge", "id": e["id"]} for e in deps.draft.get("edges", []) if {e["source"], e["target"]} & gone
     ]
     ops += [{"op": "remove_node", "id": nid} for nid in sorted(gone - {id})] + [{"op": "remove_node", "id": id}]
-    await _propose(deps, ops)
+    _propose(deps, ops)
     return f"Removed {node['type']} step {id}" + (f" and {len(gone) - 1} step(s) inside it." if len(gone) > 1 else ".")
 
 
@@ -342,7 +453,7 @@ async def connect(
         edge["sourceHandle"] = source_handle
     if target_handle:
         edge["targetHandle"] = target_handle
-    await _propose(deps, [{"op": "add_edge", "edge": edge}])
+    _propose(deps, [{"op": "add_edge", "edge": edge}])
     return f"Linked {source} → {target}."
 
 
@@ -361,7 +472,7 @@ async def disconnect(
     ]
     if not edges:
         raise ModelRetry(f"There is no link from {source} to {target}. Call get_flow to see the links.")
-    await _propose(deps, [{"op": "remove_edge", "id": e["id"]} for e in edges])
+    _propose(deps, [{"op": "remove_edge", "id": e["id"]} for e in edges])
     return f"Removed {len(edges)} link(s) from {source} to {target}."
 
 
@@ -376,7 +487,7 @@ async def set_variable(ctx: RunContext[AgentDeps], name: str, type: VariableType
     deps = ctx.deps
     deps.count_tool_call()
     variable = {"name": name, "type": type, "value": value}
-    normalised = await _propose(deps, [{"op": "set_variable", "variable": variable}])
+    normalised = _propose(deps, [{"op": "set_variable", "variable": variable}])
     kept = next((v for v in normalised.get("variables", []) if v["name"] == name), variable)
     count = f" ({len(kept['value'])} items)" if isinstance(kept.get("value"), list) else ""
     return f"Set variable {name} ({type}){count}."
@@ -388,7 +499,7 @@ async def remove_variable(ctx: RunContext[AgentDeps], name: str) -> str:
     deps.count_tool_call()
     if not any(v["name"] == name for v in deps.draft.get("variables", [])):
         raise ModelRetry(f"There is no variable {name!r}.")
-    await _propose(deps, [{"op": "remove_variable", "name": name}])
+    _propose(deps, [{"op": "remove_variable", "name": name}])
     return f"Removed variable {name}."
 
 
@@ -446,6 +557,7 @@ TOOLS = [
     test_selector,
     test_selector_on_many,
     add_node,
+    add_steps,
     update_node,
     remove_node,
     connect,

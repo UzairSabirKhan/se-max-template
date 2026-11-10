@@ -16,6 +16,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
+from app.api.agent import router as agent_router
 from app.api.errors import ApiError, install_error_handlers
 from app.api.limits import BodySizeLimit
 from app.api.routes import router as api_router
@@ -64,6 +65,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
         return JSONResponse({"status": "ok", "database": "ok"})
 
     app.include_router(api_router)
+    app.include_router(agent_router)  # Workstream B: POST /api/flows/{id}/agent
 
     @app.api_route("/api", methods=["GET", "POST", "PUT", "DELETE", "PATCH"], include_in_schema=False)
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
