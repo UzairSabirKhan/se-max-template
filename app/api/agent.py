@@ -23,6 +23,7 @@ from app.ai.agent import run_agent
 from app.ai.models import AIConfig, AIUnavailable, get_model
 from app.api.errors import ApiError, invalid_flow
 from app.api.routes import Repo, _load
+from app.db.session import running_on_host
 from app.engine import api as engine
 
 router = APIRouter(prefix="/api")
@@ -47,26 +48,50 @@ class AgentRequest(BaseModel):
     history: list[ChatTurn] = Field(default_factory=list, max_length=40)
 
 
-class RateLimiter:
-    """Sliding window per key, in memory. One uvicorn worker (ADR 0004), so one process holds it all."""
+#: Every agent message costs AI credits, so there is also a ceiling across ALL clients. It holds even
+#: if someone fakes a new IP on every request (D-22).
+GLOBAL_RATE_LIMIT = 60
 
-    def __init__(self, limit: int = RATE_LIMIT, window_s: float = RATE_WINDOW_S) -> None:
+
+class RateLimiter:
+    """Sliding windows in memory: one per client, plus one global. One uvicorn worker (ADR 0004), so one
+    process holds it all."""
+
+    def __init__(self, limit: int = RATE_LIMIT, window_s: float = RATE_WINDOW_S,
+                 global_limit: int = GLOBAL_RATE_LIMIT) -> None:
         self.limit = limit
         self.window_s = window_s
+        self.global_limit = global_limit
         self._hits: dict[str, deque[float]] = defaultdict(deque)
+        self._all: deque[float] = deque()
+
+    def _trim(self, hits: deque[float], now: float) -> None:
+        while hits and now - hits[0] >= self.window_s:
+            hits.popleft()
 
     def allow(self, key: str) -> bool:
         now = time.monotonic()
+        self._trim(self._all, now)
+        if len(self._all) >= self.global_limit:
+            return False
         hits = self._hits[key]
-        while hits and now - hits[0] >= self.window_s:
-            hits.popleft()
+        self._trim(hits, now)
         if len(hits) >= self.limit:
             return False
         hits.append(now)
+        self._all.append(now)
+        if len(self._hits) > 1_000:  # forget idle clients so fake IPs can't grow memory without bound
+            for k in [k for k, h in self._hits.items() if not h or now - h[-1] >= self.window_s]:
+                del self._hits[k]
         return True
+
+    @property
+    def tracked_clients(self) -> int:
+        return len(self._hits)
 
     def reset(self) -> None:
         self._hits.clear()
+        self._all.clear()
 
 
 limiter = RateLimiter()
@@ -86,6 +111,17 @@ def agent_model() -> Model | None:
 
 
 def _client_key(request: Request) -> str:
+    """Who is asking, for the per-client limit.
+
+    On Railway / Render every request comes through the platform's proxy, which APPENDS the address it
+    saw to X-Forwarded-For. The client can put anything in front of that, so only the LAST entry is
+    trusted. Locally (no proxy) the socket address is used and the header is ignored.
+    """
+    if running_on_host():
+        forwarded = request.headers.get("x-forwarded-for", "")
+        last = forwarded.rsplit(",", 1)[-1].strip()
+        if last:
+            return last
     return request.client.host if request.client else "unknown"
 
 
@@ -98,7 +134,7 @@ async def agent_chat(
     model: Annotated[Model | None, Depends(agent_model)],
 ) -> EventSourceResponse:
     if not limiter.allow(_client_key(request)):
-        raise ApiError(429, "rate_limited", "You've sent 10 messages this minute. Wait a moment and try again.")
+        raise ApiError(429, "rate_limited", "Too many assistant messages this minute. Wait a moment and try again.")
     await _load(repo, flow_id)
     draft, issues = engine.parse_flow(body.draft, draft=True)
     if issues or draft is None:

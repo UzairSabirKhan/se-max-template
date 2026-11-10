@@ -36,4 +36,8 @@ USER scrapeonce
 EXPOSE 8000
 # ONE worker: the scheduler runs inside the app and must not start twice (docs/adr 0004).
 # $PORT is set by Railway and Render; 8000 when run locally.
-CMD ["sh", "-c", "exec /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --proxy-headers --forwarded-allow-ips='*'"]
+# --no-proxy-headers: uvicorn must never replace the client address with X-Forwarded-For, which the
+# client controls (it even does so by default for requests from 127.0.0.1). Fake addresses would
+# bypass the assistant's rate limit (D-22). The app reads only the platform proxy's own entry itself
+# (app/api/agent.py, _client_key).
+CMD ["sh", "-c", "exec /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --no-proxy-headers"]

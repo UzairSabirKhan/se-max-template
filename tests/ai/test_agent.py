@@ -279,3 +279,65 @@ def test_route_allows_ten_messages_a_minute(app_client):
     codes = [client.post(f"/api/flows/{flow['id']}/agent", json=body).status_code for _ in range(11)]
     assert codes == [200] * 10 + [429]
     assert client.post(f"/api/flows/{flow['id']}/agent", json=body).json()["error"] == "rate_limited"
+
+
+# D-22: the review showed 15/15 messages accepted on real uvicorn when each claimed a different
+# X-Forwarded-For. These replay that attack.
+def _not_on_a_host(monkeypatch):
+    for name in ("RENDER", "RAILWAY_ENVIRONMENT", "RAILWAY_PROJECT_ID", "REQUIRE_DATABASE_URL"):
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.mark.req("FR-35")
+def test_fake_forwarded_for_cannot_dodge_the_limit_on_a_host(app_client, monkeypatch):
+    app, client = app_client
+    _not_on_a_host(monkeypatch)
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    app.dependency_overrides[agent_route.agent_model] = lambda: scripted([TextPart("ok")])
+    flow = new_flow(client)
+    body = {"message": "hi", "draft": flow["draft"]}
+    codes = [
+        client.post(f"/api/flows/{flow['id']}/agent", json=body,
+                    # the client fakes the first entry; the platform proxy appends the real address
+                    headers={"X-Forwarded-For": f"203.0.113.{i}, 198.51.100.7"}).status_code
+        for i in range(11)
+    ]
+    assert codes == [200] * 10 + [429]
+
+
+@pytest.mark.req("FR-35")
+def test_forwarded_for_is_ignored_when_not_behind_a_host_proxy(app_client, monkeypatch):
+    app, client = app_client
+    _not_on_a_host(monkeypatch)
+    app.dependency_overrides[agent_route.agent_model] = lambda: scripted([TextPart("ok")])
+    flow = new_flow(client)
+    body = {"message": "hi", "draft": flow["draft"]}
+    codes = [client.post(f"/api/flows/{flow['id']}/agent", json=body,
+                         headers={"X-Forwarded-For": f"203.0.113.{i}"}).status_code for i in range(11)]
+    assert codes == [200] * 10 + [429]
+
+
+@pytest.mark.req("FR-35")
+def test_global_ceiling_holds_even_with_a_new_address_every_time(app_client, monkeypatch):
+    app, client = app_client
+    _not_on_a_host(monkeypatch)
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    monkeypatch.setattr(agent_route, "limiter", agent_route.RateLimiter(limit=10, global_limit=15))
+    app.dependency_overrides[agent_route.agent_model] = lambda: scripted([TextPart("ok")])
+    flow = new_flow(client)
+    body = {"message": "hi", "draft": flow["draft"]}
+    codes = [client.post(f"/api/flows/{flow['id']}/agent", json=body,
+                         headers={"X-Forwarded-For": f"198.51.100.{i}"}).status_code for i in range(16)]
+    assert codes == [200] * 15 + [429]  # 16 different "clients", still capped
+
+
+@pytest.mark.req("FR-35")
+def test_rate_limiter_forgets_idle_clients(monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(agent_route.time, "monotonic", lambda: clock[0])
+    limiter = agent_route.RateLimiter(limit=10, window_s=60, global_limit=10_000)
+    for i in range(1_200):
+        assert limiter.allow(f"fake-{i}")
+    clock[0] = 120.0  # a window later, every one of them is idle
+    assert limiter.allow("real-user")
+    assert limiter.tracked_clients < 10
