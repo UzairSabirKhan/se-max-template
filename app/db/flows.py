@@ -118,15 +118,20 @@ class FlowRepo:
         self.session.expire_all()
         return await self.get(flow_id)
 
-    async def publish(self, flow_id: str) -> dict[str, Any]:
+    async def publish(self, flow_id: str, published: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Copy the draft (or the given, already-checked version of it) to the published copy."""
         row = await self.get_row(flow_id)
-        row.published_json = copy.deepcopy(row.draft_json)
+        row.published_json = copy.deepcopy(published if published is not None else row.draft_json)
         row.published_hash = flow_hash(row.published_json)
         row.published_at = utcnow()
         row.status = "published"
         row.updated_at = utcnow()
         await self.session.commit()
         return self._detail(row)
+
+    async def published_flows(self) -> list[FlowRow]:
+        """Every flow whose schedule should be running (the scheduler rebuilds from this at startup)."""
+        return list((await self.session.execute(select(FlowRow).where(FlowRow.status == "published"))).scalars())
 
     async def set_status(self, flow_id: str, status: str) -> dict[str, Any]:
         row = await self.get_row(flow_id)

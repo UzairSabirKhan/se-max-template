@@ -34,7 +34,7 @@ def create_and_save(client: TestClient) -> tuple[str, int]:
 
 
 @pytest.mark.req("FR-01")
-def test_flows_survive_a_restart(tmp_path):
+def test_flows_survive_a_restart(tmp_path, fake_web):
     url = sqlite_url(tmp_path)
     with make_client(url) as first:
         flow_id, version = create_and_save(first)

@@ -73,8 +73,14 @@ async def run(model, draft=None, message="Track prices on https://shop.example.c
 # run_agent
 # ---------------------------------------------------------------------------
 @pytest.mark.req("FR-06")
-async def test_agent_builds_the_list_tracking_flow_from_one_sentence(fake_web):
+async def test_agent_builds_the_list_tracking_flow_from_one_sentence(fake_web, monkeypatch):
     fake_web["/list"] = fake_web["/shop"]  # the real mock shop page, served offline (tests/conftest.py)
+
+    async def ok_report(flow, flow_id, until_node=None):  # the real dry run is tested in tests/engine/test_runner.py
+        return {"verdict": "OK", "reason": "No changes since the last run", "items_found": 12, "items_valid": 12,
+                "changes": {"new": 0, "changed": 0, "removed": 0}, "coverage": {}, "evidence": [], "items": []}
+
+    monkeypatch.setattr(engine, "dry_run", ok_report)
     events = await run(build_flow_model())
     names = [e for e, _ in events]
 

@@ -1,0 +1,12 @@
+INFO:     Started server process [2076]
+INFO:     Waiting for application startup.
+2026-11-10 13:20:28,113 INFO scrapeonce: Database ready (SQLite)
+2026-11-10 13:20:28,116 INFO apscheduler.scheduler: Scheduler started
+2026-11-10 13:20:28,126 INFO scrapeonce.scheduler: Scheduler started with 0 job(s)
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8150 (Press CTRL+C to quit)
+INFO:     127.0.0.1:52156 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52160 - "POST /api/flows HTTP/1.1" 201 Created
+INFO:     127.0.0.1:55199 - "POST /api/flows/flow_fc0fa66446fe/dry-run HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55201 - "POST /api/flows/flow_fc0fa66446fe/dry-run HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55204 - "POST /api/flows/flow_fc0fa66446fe/dry-run HTTP/1.1" 200 OK
