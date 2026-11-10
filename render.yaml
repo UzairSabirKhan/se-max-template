@@ -1,0 +1,27 @@
+# Render Blueprint (Render → New → Blueprint → this repo). Same Dockerfile as Railway.
+# Secrets are NOT stored here: `sync: false` makes Render ask for each value in its dashboard.
+services:
+  - type: web
+    name: scrapeonce
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL        # a free Neon Postgres URL (Render free has no persistent disk)
+        sync: false
+      - key: AI_MODEL            # e.g. google:<gemini-model>
+        sync: false
+      - key: AI_FALLBACK_MODEL   # e.g. groq:<llama-model>,anthropic:<claude-model>
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ALLOWED_DOMAINS     # the app's own host, so only the mock shop is scraped
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false

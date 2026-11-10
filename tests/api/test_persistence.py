@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from app.db.flows import FlowRepo, VersionConflict
 from app.db.models import AlertRow
-from app.db.session import Database, DatabaseConfigError, resolve_database_url
+from app.db.session import Database, DatabaseConfigError, resolve_database_url, running_on_host
 from app.flow.cases import load_example
 from app.main import create_app
 
@@ -118,7 +118,7 @@ def test_health_reports_503_when_the_database_is_down(tmp_path, monkeypatch):
 def test_neon_url_is_converted_for_asyncpg():
     target = resolve_database_url(
         "postgresql://user:pw@ep-cool-1234-pooler.eu-central-1.aws.neon.tech/neondb"
-        "?sslmode=require&channel_binding=require", on_render=True)
+        "?sslmode=require&channel_binding=require", host="Render")
     assert target.url == "postgresql+asyncpg://user:pw@ep-cool-1234-pooler.eu-central-1.aws.neon.tech/neondb"
     assert target.connect_args == {"statement_cache_size": 0, "ssl": "require"}
     assert target.is_sqlite is False
@@ -126,31 +126,54 @@ def test_neon_url_is_converted_for_asyncpg():
 
 @pytest.mark.req("NFR-09")
 def test_postgres_scheme_alias_is_accepted():
-    assert resolve_database_url("postgres://u:p@h/db", on_render=False).url == "postgresql+asyncpg://u:p@h/db"
+    assert resolve_database_url("postgres://u:p@h/db", host=None).url == "postgresql+asyncpg://u:p@h/db"
 
 
 @pytest.mark.req("NFR-09")
 def test_missing_database_url_on_render_fails_loudly():
-    with pytest.raises(DatabaseConfigError, match="Neon"):
-        resolve_database_url("", on_render=True)
+    with pytest.raises(DatabaseConfigError, match="On Render"):
+        resolve_database_url("", host="Render")
+
+
+@pytest.mark.req("NFR-09")
+@pytest.mark.parametrize("marker,host", [
+    ("RENDER", "Render"), ("RAILWAY_ENVIRONMENT", "Railway"), ("RAILWAY_PROJECT_ID", "Railway"),
+    ("REQUIRE_DATABASE_URL", "this host"),
+])
+def test_every_host_is_detected_and_refuses_to_lose_data(monkeypatch, marker, host):
+    for name in ("RENDER", "RAILWAY_ENVIRONMENT", "RAILWAY_PROJECT_ID", "REQUIRE_DATABASE_URL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv(marker, "1")
+    assert running_on_host() == host
+    with pytest.raises(DatabaseConfigError, match=f"On {host}"):
+        resolve_database_url("")
+    with pytest.raises(DatabaseConfigError, match="not persistent"):
+        resolve_database_url("sqlite:///x.db")
+
+
+@pytest.mark.req("NFR-09")
+def test_railway_internal_postgres_url_is_accepted():
+    target = resolve_database_url("postgresql://postgres:pw@postgres.railway.internal:5432/railway", host="Railway")
+    assert target.url == "postgresql+asyncpg://postgres:pw@postgres.railway.internal:5432/railway"
+    assert "ssl" not in target.connect_args  # private network, no sslmode in the URL
 
 
 @pytest.mark.req("NFR-09")
 def test_sqlite_on_render_is_refused():
     with pytest.raises(DatabaseConfigError, match="not persistent"):
-        resolve_database_url("sqlite:///x.db", on_render=True)
+        resolve_database_url("sqlite:///x.db", host="Render")
 
 
 @pytest.mark.req("NFR-09")
 def test_local_default_is_a_sqlite_file():
-    target = resolve_database_url("", on_render=False)
+    target = resolve_database_url("", host=None)
     assert target.is_sqlite and target.url.endswith("/scrapeonce.db")
 
 
 @pytest.mark.req("NFR-09")
 def test_unknown_scheme_is_refused():
     with pytest.raises(DatabaseConfigError, match="Unsupported"):
-        resolve_database_url("mysql://u:p@h/db", on_render=False)
+        resolve_database_url("mysql://u:p@h/db", host=None)
 
 
 # --- real Postgres (optional) ------------------------------------------------

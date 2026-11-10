@@ -4,8 +4,8 @@ DATABASE_URL decides where data lives:
 - Neon / any Postgres URL (production): `postgresql://user:pass@host/db?sslmode=require` as copied
   from the Neon dashboard is accepted and converted for asyncpg.
 - Not set, locally: a SQLite file `scrapeonce.db` in the repo root (survives restarts; git-ignored).
-- Not set, on Render: startup FAILS on purpose. Render's disk is wiped on every deploy and sleep,
-  so silently falling back to SQLite there would lose every flow.
+- Not set, on a hosting platform (Render, Railway): startup FAILS on purpose. Their container disk
+  is wiped on every deploy, so silently falling back to SQLite there would lose every flow.
 """
 
 from __future__ import annotations
@@ -39,15 +39,34 @@ class DbTarget:
 _LIBPQ_ONLY = {"sslmode", "channel_binding", "options", "target_session_attrs", "gssencmode"}
 
 
-def resolve_database_url(raw: str | None, on_render: bool | None = None) -> DbTarget:
+# Environment variables each platform sets inside its containers. REQUIRE_DATABASE_URL=1 forces the
+# same protection anywhere else (another host, a staging box).
+_HOSTED_MARKERS = ("RENDER", "RAILWAY_ENVIRONMENT", "RAILWAY_PROJECT_ID", "REQUIRE_DATABASE_URL")
+
+
+def running_on_host() -> str | None:
+    """The hosting platform we are running on, or None when local."""
+    for name in _HOSTED_MARKERS:
+        if os.environ.get(name):
+            return "Railway" if name.startswith("RAILWAY") else ("Render" if name == "RENDER" else "this host")
+    return None
+
+
+_DETECT = "<detect>"
+
+
+def resolve_database_url(raw: str | None, host: str | None = _DETECT) -> DbTarget:
+    """Turn DATABASE_URL into an engine target. `host` is the platform name, None for local, or left
+    out to detect it from the environment (tests pass it explicitly)."""
     raw = (raw or "").strip()
-    if on_render is None:
-        on_render = bool(os.environ.get("RENDER"))
+    if host == _DETECT:
+        host = running_on_host()
     if not raw:
-        if on_render:
+        if host:
             raise DatabaseConfigError(
-                "DATABASE_URL is not set. On Render the disk is wiped on every deploy, so a database "
-                "is required: create a free Neon Postgres and set DATABASE_URL in the Render dashboard."
+                f"DATABASE_URL is not set. On {host} the disk is wiped on every deploy, so a database is "
+                "required: add a Postgres database (Railway: New → Database → PostgreSQL; Render: a free "
+                "Neon database) and set DATABASE_URL."
             )
         raw = f"sqlite+aiosqlite:///{(ROOT / 'scrapeonce.db').as_posix()}"
 
@@ -55,8 +74,8 @@ def resolve_database_url(raw: str | None, on_render: bool | None = None) -> DbTa
     scheme = parts.scheme.lower()
 
     if scheme.startswith("sqlite"):
-        if on_render:
-            raise DatabaseConfigError("SQLite is not allowed on Render: its disk is not persistent. Use Postgres.")
+        if host:
+            raise DatabaseConfigError(f"SQLite is not allowed on {host}: its disk is not persistent. Use Postgres.")
         url = raw.replace("sqlite://", "sqlite+aiosqlite://", 1) if scheme == "sqlite" else raw
         return DbTarget(url=url, connect_args={}, is_sqlite=True)
 
