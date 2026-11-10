@@ -11,7 +11,7 @@ from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, Text
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from app.ai.agent import history_messages, run_agent, tool_summary
-from app.ai.models import MAX_TOOL_CALLS
+from app.ai.models import MAX_MODEL_REQUESTS
 from app.api import agent as agent_route
 from app.engine import api as engine
 from app.main import create_app
@@ -153,10 +153,13 @@ async def test_no_model_configured_means_ai_unavailable():
 
 
 @pytest.mark.req("FR-07")
-async def test_more_than_the_tool_call_cap_stops_the_run():
+async def test_a_model_going_round_in_circles_ends_with_a_reply_not_an_error():
+    """No cap on tool calls: only an endless loop is stopped, and then the user gets a plain reply."""
     events = await run(scripted([ToolCallPart("get_flow", {})]))
-    assert events[-1][1]["code"] == "tool_failed"
-    assert sum(1 for e, _ in events if e == "tool_call") == MAX_TOOL_CALLS
+    names = [e for e, _ in events]
+    assert "error" not in names and names[-1] == "done"
+    assert sum(1 for e, _ in events if e == "tool_call") == MAX_MODEL_REQUESTS > 12
+    assert any("try again" in d.get("delta", "") for e, d in events if e == "text")
 
 
 async def test_instructions_carry_the_rules_the_draft_and_the_selection():

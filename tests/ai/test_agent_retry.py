@@ -7,7 +7,7 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCall
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from app.ai.agent import run_agent
-from app.ai.models import MAX_TOOL_CALLS
+from app.ai.models import MAX_MODEL_REQUESTS
 from tests.ai.test_tools import STARTER, Recorder
 
 pytestmark = pytest.mark.contract
@@ -71,18 +71,19 @@ async def test_a_wrong_key_is_not_retried():
 
 @pytest.mark.req("FR-11")
 async def test_step_limit_keeps_the_validated_edits():
-    """Adds a valid wait step every turn until the cap: the edits are proposed, not thrown away."""
+    """Adds a valid wait step, then goes round in circles until the loop guard: the edit is proposed, not lost."""
     turn = {"n": 0}
 
     def fn(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         turn["n"] += 1
-        return ModelResponse(parts=[ToolCallPart("add_node", {"type": "wait", "config": {"seconds": 2}},
-                                                 tool_call_id=f"c{turn['n']}")])
+        call = (ToolCallPart("add_node", {"type": "wait", "config": {"seconds": 2}}, tool_call_id="c1")
+                if turn["n"] == 1 else ToolCallPart("get_flow", {}, tool_call_id=f"c{turn['n']}"))
+        return ModelResponse(parts=[call])
 
     waits: list[float] = []
     events = await run(FunctionModel(fn), waits)
     names = [e for e, _ in events]
     assert names[-2:] == ["flow_ops", "done"] and "error" not in names
     ops = dict(events)["flow_ops"]["ops"]
-    assert len(ops) == MAX_TOOL_CALLS and all(op["op"] == "add_node" for op in ops)
+    assert turn["n"] == MAX_MODEL_REQUESTS and len(ops) == 1 and all(op["op"] == "add_node" for op in ops)
     assert any("continue" in d.get("delta", "") for e, d in events if e == "text")

@@ -40,8 +40,9 @@ from pydantic_ai.settings import ModelSettings
 
 log = logging.getLogger(__name__)
 
-#: At most this many tool calls per user message (FR-07). Enforced by UsageLimits; also counted in AgentDeps.
-MAX_TOOL_CALLS = 12
+#: No cap on tool calls per message (FR-07): the assistant keeps going until it is done. This only stops a
+#: model that goes round in circles; a normal message, even a whole flow, needs far fewer requests.
+MAX_MODEL_REQUESTS = 60
 
 #: Per-request limits. SDK retries are kept low because FallbackModel moves on to the next model instead.
 MODEL_SETTINGS = ModelSettings(
@@ -152,8 +153,8 @@ def get_model(config: AIConfig | None = None) -> Model:
 
 
 def usage_limits() -> UsageLimits:
-    """Caps for one user message: MAX_TOOL_CALLS tool calls, and enough model requests to use them and then reply."""
-    return UsageLimits(tool_calls_limit=MAX_TOOL_CALLS, request_limit=MAX_TOOL_CALLS + 3)
+    """Limits for one user message: no tool-call cap, only a high request ceiling against an endless loop."""
+    return UsageLimits(tool_calls_limit=None, request_limit=MAX_MODEL_REQUESTS)
 
 
 EmitFn = Callable[[str, dict[str, Any]], Awaitable[None]]
@@ -195,6 +196,6 @@ class AgentDeps:
         )
 
     def count_tool_call(self) -> int:
-        """Record one tool call; returns how many are left in this message's budget."""
+        """Record one tool call (reported in the `done` event); returns how many this message has made."""
         self.tool_calls += 1
-        return max(0, MAX_TOOL_CALLS - self.tool_calls)
+        return self.tool_calls
