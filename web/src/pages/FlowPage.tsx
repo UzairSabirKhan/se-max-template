@@ -20,6 +20,7 @@ import { AlertsTab } from "../tabs/AlertsTab";
 import { DataTab } from "../tabs/DataTab";
 import { RunsTab } from "../tabs/RunsTab";
 import { StatusPill } from "./FlowsPage";
+import { NextRun } from "../components/NextRun";
 import { VERDICT_STYLE } from "../components/ui";
 
 type Tab = "editor" | "runs" | "alerts" | "data";
@@ -187,6 +188,7 @@ export function FlowPage() {
       useEditor.getState().applyServer(res);
       useEditor.getState().setIssues([]);
       qc.invalidateQueries({ queryKey: ["flows"] });
+      qc.invalidateQueries({ queryKey: ["next-run", id] });
       const trig = res.published?.nodes.find((n) => n.type === "trigger")?.config;
       toast.success("Published", trig?.mode === "interval" ? `It runs every ${trig.every_minutes} min. Runs never call AI.` : trig?.mode === "daily" ? `It runs daily at ${trig.at_time}.` : "Use Run now to run it.");
     } catch (e) {
@@ -223,6 +225,7 @@ export function FlowPage() {
       qc.invalidateQueries({ queryKey: ["alerts", id] });
       qc.invalidateQueries({ queryKey: ["datasets", id] });
       qc.invalidateQueries({ queryKey: ["flows"] });
+      qc.invalidateQueries({ queryKey: ["next-run", id] });
       setTimeout(() => useEditor.getState().setRun(null), 5000);
     } catch (e) {
       const err = e as ApiError;
@@ -238,6 +241,7 @@ export function FlowPage() {
       const res = on ? await api.publish(id) : await api.pause(id);
       useEditor.getState().applyServer(res);
       qc.invalidateQueries({ queryKey: ["flows"] });
+      qc.invalidateQueries({ queryKey: ["next-run", id] });
       toast.success(on ? "Schedule resumed" : "Paused", on ? undefined : "Nothing runs until you turn it back on. Run now still works after resuming.");
     } catch (e) {
       toast.error("Couldn't change the schedule", (e as Error).message);
@@ -256,10 +260,12 @@ export function FlowPage() {
       const res = await api.unpublish(id);
       useEditor.getState().applyServer(res);
       qc.invalidateQueries({ queryKey: ["flows"] });
+      qc.invalidateQueries({ queryKey: ["next-run", id] });
       toast.success("Unpublished", "The schedule is off. Your draft is kept.");
     } else if (c === "delete") {
       await api.deleteFlow(id);
       qc.invalidateQueries({ queryKey: ["flows"] });
+      qc.invalidateQueries({ queryKey: ["next-run", id] });
       nav("/");
       toast.success("Flow deleted");
     }
@@ -315,6 +321,7 @@ export function FlowPage() {
             ))}
           </div>
         </div>
+        {st.status === "published" && <NextRun flowId={id} />}
         <Button size="md" icon={<Play className="size-3.5" />} disabled={!st.published || st.status !== "published"} loading={busy === "run"} onClick={runNow} title={!st.published ? "Publish first" : st.status === "paused" ? "Resume the schedule first" : "Run the published flow now"}>
           Run now
         </Button>

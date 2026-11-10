@@ -15,6 +15,7 @@ import csv
 import io
 import json
 from collections.abc import AsyncIterator
+from datetime import UTC
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -201,7 +202,18 @@ async def run_now(flow_id: str, request: Request, repo: Repo) -> dict[str, Any]:
                                   engine.fetch_options(), row.published_hash)
     except AlreadyRunning:
         raise ApiError(409, "already_running", "This flow is already running. Wait for it to finish.") from None
+    if (scheduler := _scheduler(request)) is not None:
+        scheduler.schedule(flow_id, row.published_json)  # the next scheduled run counts from this run
     return {"run_id": run_id}
+
+
+@router.get("/flows/{flow_id}/next-run")
+async def next_run(flow_id: str, request: Request, repo: Repo) -> dict[str, Any]:
+    """When the next scheduled run is due: {"next_run_at": ISO time or null (manual, paused, not published)}."""
+    await _load(repo, flow_id)
+    scheduler = _scheduler(request)
+    when = scheduler.next_run_at(flow_id) if scheduler is not None else None
+    return {"next_run_at": when.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z") if when else None}
 
 
 # --- runs ----------------------------------------------------------------------------

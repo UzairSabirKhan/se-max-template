@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Checks, ItemsTable, NodeTrace } from "../components/RunReport";
 import { EmptyState, Pill, Spinner, VERDICT_STYLE, VerdictBadge } from "../components/ui";
 import { api } from "../lib/api";
+import { NextRun } from "../components/NextRun";
 import { dateTime, duration, timeAgo } from "../lib/format";
 import type { Flow, RunSummary } from "../types/contracts";
 
@@ -44,6 +45,9 @@ export function RunsTab({ flowId, flow }: { flowId: string; flow: Flow }) {
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-white/95 px-4 py-3 backdrop-blur">
           <p className="text-[14px] font-semibold">Run history</p>
           <span className="flex items-center gap-1 text-[12px] text-emerald-700"><ShieldCheck className="size-3.5" /> 0 AI calls in every run</span>
+        </div>
+        <div className="border-b border-line px-4 py-2 empty:hidden">
+          <NextRun flowId={flowId} withClock />
         </div>
         <ul>
           {runs.data.map((run) => {

@@ -1,3 +1,16 @@
+/** "in 12 min", "in 1 h 5 min", "any moment" for a future ISO time. */
+export function timeUntil(iso: string): string {
+  const m = Math.round((new Date(iso).getTime() - Date.now()) / 60_000);
+  if (m < 1) return "any moment";
+  if (m < 60) return `in ${m} min`;
+  const h = Math.floor(m / 60);
+  return m % 60 ? `in ${h} h ${m % 60} min` : `in ${h} h`;
+}
+
+export function clockTime(iso: string) {
+  return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
 export function timeAgo(iso: string | null | undefined): string {
   if (!iso) return "never";
   const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000);

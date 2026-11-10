@@ -378,6 +378,14 @@ export function createMockApi(): Api {
       save();
       return { run_id: rep.id };
     },
+    async nextRun(flowId) {
+      const f = flowOr404(flowId);
+      const trig = f.published?.nodes.find((n) => n.type === "trigger")?.config;
+      if (f.status !== "published" || trig?.mode !== "interval") return { next_run_at: null };
+      const last = db.runs.find((r) => r.flow_id === flowId && r.trigger !== "dry_run")?.started_at ?? f.published_at;
+      const due = new Date(new Date(last ?? Date.now()).getTime() + (trig.every_minutes ?? 60) * 60_000);
+      return { next_run_at: (due.getTime() > Date.now() ? due : new Date(Date.now() + 10_000)).toISOString() };
+    },
     async listRuns(flowId, limit = 20) {
       await latency();
       return db.runs.filter((r) => r.flow_id === flowId).slice(0, limit).map(({ evidence, http, coverage, node_trace, iterations, items, ...s }) => s);

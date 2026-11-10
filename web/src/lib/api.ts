@@ -38,6 +38,8 @@ export interface Api {
   unpublish(id: string): Promise<FlowDetail>;
   runNow(id: string): Promise<{ run_id: string }>;
   listRuns(flowId: string, limit?: number): Promise<RunSummary[]>;
+  /** When the next scheduled run is due (null: manual, paused or not published). */
+  nextRun(flowId: string): Promise<{ next_run_at: string | null }>;
   getRun(runId: string): Promise<RunReport>;
   streamRun(runId: string, onEvent: (e: RunStreamEvent) => void, signal: AbortSignal): Promise<void>;
   listAlerts(flowId: string): Promise<Alert[]>;
@@ -89,6 +91,7 @@ function createLiveApi(): Api {
     unpublish: (id) => req("POST", `/api/flows/${id}/unpublish`),
     runNow: (id) => req("POST", `/api/flows/${id}/run`),
     listRuns: (flowId, limit = 20) => req("GET", `/api/flows/${flowId}/runs?limit=${limit}`),
+    nextRun: (flowId) => req("GET", `/api/flows/${flowId}/next-run`),
     getRun: (runId) => req("GET", `/api/runs/${runId}`),
     streamRun: (runId, onEvent, signal) =>
       new Promise<void>((resolve) => {
