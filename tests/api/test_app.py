@@ -79,6 +79,23 @@ def test_save_without_version_is_a_clear_422(client):
     assert "version" in r.json()["message"]
 
 
+@pytest.mark.req("FR-02")
+def test_editor_can_save_a_new_empty_step_then_fill_it_in(client):
+    """The exact request the editor sent in the integration test that returned 422."""
+    flow = client.post("/api/flows", json={"name": "Untitled flow"}).json()
+    draft = copy.deepcopy(flow["draft"])
+    draft["nodes"].append({"id": "n_1gsvz9", "type": "fetch_page",
+                           "position": {"x": 703.8, "y": 16.0}, "config": {"url": ""}})
+    saved = client.put(f"/api/flows/{flow['id']}", json={"name": "Untitled flow", "draft": draft})
+    assert saved.status_code == 200, saved.json()
+
+    draft = saved.json()["draft"]
+    next(n for n in draft["nodes"] if n["id"] == "n_1gsvz9")["config"]["url"] = "https://example.com/shop"
+    filled = client.put(f"/api/flows/{flow['id']}", json={"draft": draft})
+    assert filled.status_code == 200
+    assert client.post(f"/api/flows/{flow['id']}/publish").status_code == 422  # still incomplete overall
+
+
 @pytest.mark.req("FR-23")
 def test_saved_draft_is_the_normalised_version(client):
     flow = client.post("/api/flows", json={"name": "A"}).json()

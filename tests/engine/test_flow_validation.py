@@ -168,6 +168,75 @@ def test_exported_contract_files_are_up_to_date():
     assert on_disk == set(INVALID_CASES), "remove invalid_*.json files whose case no longer exists"
 
 
+# The exact configs the editor gives a newly dropped step (web/src/lib/nodeMeta.tsx defaultConfig).
+# Found in integration: the first draft mode refused every one of these, so nothing could be saved.
+UI_NEW_STEP_CONFIGS = {
+    "fetch_page": {"url": ""},
+    "paginate": {"next_selector": "a.next", "max_pages": 3},
+    "extract_list": {"base_selector": "", "identity_key": "", "fields": []},
+    "save_records": {"dataset": "", "track_fields": [], "alert_on_first_run": False},
+    "condition": {"match": "all", "rules": []},
+    "for_each": {"source": "items", "max_items": 25, "on_error": "skip"},
+    "wait": {"seconds": 2},
+    "fetch_item_page": {"url_field": "url"},
+    "extract_fields": {"fields": []},
+    "alert": {"title": "", "level": "info"},
+    "results": {"name": "results"},
+    "click": {}, "scroll": {}, "type": {}, "wait_for_element": {},
+}
+
+
+def _with_step(node_type, config, **extra):
+    flow = {**STARTER, "nodes": [*STARTER["nodes"], {"id": "n_new001", "type": node_type, "config": config, **extra}]}
+    return flow
+
+
+@pytest.mark.req("FR-02")
+@pytest.mark.parametrize("node_type", sorted(UI_NEW_STEP_CONFIGS))
+def test_a_newly_dropped_step_can_be_saved_as_draft(node_type):
+    flow = _with_step(node_type, UI_NEW_STEP_CONFIGS[node_type])
+    normalised, issues = parse_flow(flow, draft=True)
+    assert issues == []
+    new = next(n for n in normalised["nodes"] if n["id"] == "n_new001")
+    for key, value in UI_NEW_STEP_CONFIGS[node_type].items():  # what the user set is kept
+        assert new["config"][key] == value
+
+
+@pytest.mark.req("FR-03")
+@pytest.mark.parametrize("node_type", ["fetch_page", "extract_list", "condition", "alert", "click"])
+def test_unfilled_settings_block_dry_run_with_a_clear_message(node_type):
+    issues = validate_flow(_with_step(node_type, UI_NEW_STEP_CONFIGS[node_type]))
+    assert any(i["node_id"] == "n_new001" and i["message"] == "This field is required" for i in issues)
+
+
+@pytest.mark.req("FR-03")
+@pytest.mark.parametrize("config,expected", [
+    ({"url": "", "script": "alert(1)"}, "Extra inputs are not permitted"),
+    ({"url": "file:///etc/passwd"}, "Only http and https"),
+    ({"url": "{{secret}}"}, "Only http and https"),
+    ({"url": "{{ secret }}"}, "may not contain spaces"),
+])
+def test_unfilled_draft_still_refuses_wrong_values(config, expected):
+    issues = validate_flow(_with_step("fetch_page", config), draft=True)
+    assert any(expected in i["message"] for i in issues)
+
+
+@pytest.mark.req("FR-03")
+def test_real_error_is_reported_even_next_to_an_unfilled_step():
+    flow = _with_step("fetch_page", {"url": ""})
+    flow["nodes"].append({"id": "n_bad001", "type": "extract_list",
+                          "config": {"base_selector": "div[", "identity_key": "", "fields": []}})
+    assert validate_flow(flow, draft=True) == [
+        {"node_id": "n_bad001", "path": "config.base_selector", "message": "Selector does not parse"}]
+
+
+@pytest.mark.req("FR-04")
+def test_structure_rules_still_apply_to_unfilled_steps():
+    flow = _with_step("condition", {"match": "all", "rules": []})
+    flow["edges"] = [{"id": "e1", "source": "n_new001", "target": "k1"}]  # condition edge without a handle
+    assert any("'true' or 'false' handle" in i["message"] for i in validate_flow(flow, draft=True))
+
+
 @pytest.mark.req("FR-22")
 def test_loop_back_edge_is_not_a_cycle():
     # b2 -> l1 ("next") closes the loop; it must not be reported as a cycle.

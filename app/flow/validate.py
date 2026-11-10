@@ -14,10 +14,11 @@ An empty list means the flow is valid. Each issue is
 
 from __future__ import annotations
 
+import copy
 import re
 from collections import defaultdict, deque
 from datetime import date
-from typing import Any
+from typing import Any, get_args
 
 from pydantic import ValidationError
 
@@ -31,6 +32,8 @@ from app.flow.schema import (
     STOCK_OPS,
     TEXT_OPS,
     Flow,
+    FlowNode,
+    NodeBase,
     VarRef,
 )
 
@@ -77,7 +80,9 @@ def parse_flow(raw: Any, for_publish: bool = False, draft: bool = False) -> tupl
     try:
         flow = Flow.model_validate(raw)
     except ValidationError as exc:
-        return None, _schema_issues(exc, raw)
+        if not draft:
+            return None, _schema_issues(exc, raw)
+        return _parse_incomplete_draft(exc, raw)
     issues = _GraphChecker(flow, for_publish=for_publish and not draft, draft=draft).run()
     if issues:
         return None, issues
@@ -85,9 +90,83 @@ def parse_flow(raw: Any, for_publish: bool = False, draft: bool = False) -> tupl
 
 
 # ---------------------------------------------------------------------------
+# Drafts with unfilled settings
+# ---------------------------------------------------------------------------
+# A step dropped on the canvas starts empty ("url": "", "fields": []). A draft must be savable
+# in that state, but must still never contain anything WRONG (unknown keys, a bad selector, a
+# file:// URL, template text). So: errors that only mean "not filled in yet" are tolerated in a
+# draft; every other error is still refused. Dry run and publish require everything.
+
+_NODE_CLASSES: dict[str, type] = {
+    get_args(cls.model_fields["type"].annotation)[0]: cls for cls in get_args(get_args(FlowNode)[0])
+}
+
+
+def _is_incomplete(err: Any) -> bool:
+    if err["type"] in ("missing", "incomplete"):
+        return True
+    value = err.get("input")
+    if isinstance(value, str):
+        return not value.strip()
+    return isinstance(value, list | dict) and not value
+
+
+def _incomplete_node_indexes(errors: list[Any], raw: Any) -> set[int] | None:
+    """Indexes of nodes whose ONLY errors are unfilled config fields; None if any error is real."""
+    nodes = raw.get("nodes") if isinstance(raw, dict) else None
+    indexes: set[int] = set()
+    for err in errors:
+        loc = err["loc"]
+        if not (_is_incomplete(err) and isinstance(nodes, list) and len(loc) >= 4 and loc[0] == "nodes"
+                and isinstance(loc[1], int) and loc[1] < len(nodes) and isinstance(nodes[loc[1]], dict)
+                and loc[2] == nodes[loc[1]].get("type") and loc[3] == "config"):
+            return None
+        indexes.add(loc[1])
+    return indexes
+
+
+def _parse_incomplete_draft(exc: ValidationError, raw: Any) -> tuple[dict | None, list[Issue]]:
+    indexes = _incomplete_node_indexes(exc.errors(), raw)
+    if indexes is None:  # at least one real error: report only the real ones
+        return None, _schema_issues(exc, raw, drop_incomplete=True)
+
+    raw_nodes = raw["nodes"]
+    complete = {**raw, "nodes": [n for i, n in enumerate(raw_nodes) if i not in indexes]}
+    try:
+        flow = Flow.model_validate(complete)
+    except ValidationError as again:  # cannot happen if the classification above is right
+        return None, _schema_issues(again, complete)
+
+    stubs: dict[int, Any] = {}
+    for i in indexes:
+        node = raw_nodes[i]
+        try:
+            base = NodeBase.model_validate({k: node[k] for k in ("id", "parentId", "position") if k in node})
+        except ValidationError as bad:
+            return None, _schema_issues(bad, {"nodes": [node]})
+        cls = _NODE_CLASSES[node["type"]]
+        stubs[i] = cls.model_construct(**dict(base), type=node["type"], config=None)  # config unchecked yet
+
+    parsed = iter(flow.nodes)
+    merged = [stubs[i] if i in stubs else next(parsed) for i in range(len(raw_nodes))]
+    issues = _GraphChecker(flow.model_copy(update={"nodes": merged}), for_publish=False, draft=True).run()
+    if issues:
+        return None, issues
+
+    out = flow.model_dump(mode="json", exclude_none=True)
+    dumped = iter(out["nodes"])
+    out["nodes"] = [
+        {**copy.deepcopy(raw_nodes[i]), "config": copy.deepcopy(raw_nodes[i].get("config") or {})}
+        if i in indexes else next(dumped)
+        for i in range(len(raw_nodes))
+    ]
+    return out, []
+
+
+# ---------------------------------------------------------------------------
 # Schema errors -> C2 issues
 # ---------------------------------------------------------------------------
-def _schema_issues(exc: ValidationError, raw: Any) -> list[Issue]:
+def _schema_issues(exc: ValidationError, raw: Any, drop_incomplete: bool = False) -> list[Issue]:
     nodes = raw.get("nodes") if isinstance(raw, dict) else None
     edges = raw.get("edges") if isinstance(raw, dict) else None
     variables = raw.get("variables") if isinstance(raw, dict) else None
@@ -95,6 +174,8 @@ def _schema_issues(exc: ValidationError, raw: Any) -> list[Issue]:
     seen: set[tuple[Any, str]] = set()
 
     for err in exc.errors():
+        if drop_incomplete and _is_incomplete(err):
+            continue
         loc = list(err["loc"])
         node_id = None
         prefix = ""
@@ -118,6 +199,8 @@ def _schema_issues(exc: ValidationError, raw: Any) -> list[Issue]:
 
         path = _format_path(rest, prefix)
         msg = err["msg"].removeprefix("Value error, ")
+        if _is_incomplete(err) and err["type"] != "incomplete":
+            msg = "This field is required"  # instead of "String should have at least 1 character"
         if (node_id, path) in seen:  # a union field reports once per branch; keep the first
             continue
         seen.add((node_id, path))
@@ -224,7 +307,7 @@ class _GraphChecker:
             count = len(by_type[node_type])
             if count > 1 or (count == 0 and not self.draft):
                 self.add(f"A flow needs exactly one {label} node (found {count})")
-        datasets = [n.config.dataset for n in by_type["save_records"]]
+        datasets = [n.config.dataset for n in by_type["save_records"] if n.config is not None]
         for d in sorted({x for x in datasets if datasets.count(x) > 1}):
             self.add(f"Two Save Records nodes use the dataset {d!r}; dataset names must be unique")
 
@@ -416,6 +499,8 @@ class _GraphChecker:
 
     def _variables(self) -> None:
         for n in self.flow.nodes:
+            if n.config is None:  # draft step with settings not filled in yet
+                continue
             if n.type == "fetch_page":
                 self._check_var(n.config.url, {"url"}, n.id, "config.url")
             elif n.type == "for_each":

@@ -24,6 +24,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from pydantic_core import PydanticCustomError
 from selectolax.lexbor import LexborHTMLParser
 
 # ---------------------------------------------------------------------------
@@ -48,6 +49,12 @@ PII_NAME_WORDS = frozenset({
     "passport", "password", "address", "dob", "birthday", "birthdate",
 })
 PII_NAME_PAIRS = frozenset({("e", "mail"), ("date", "of", "birth"), ("phone", "number")})
+
+
+def incomplete(message: str) -> PydanticCustomError:
+    """A setting the user hasn't filled in yet. Allowed in a saved draft, refused at dry run and
+    publish. Use ValueError instead for anything that is WRONG rather than just not done yet."""
+    return PydanticCustomError("incomplete", message)
 
 
 class Strict(BaseModel):
@@ -274,7 +281,7 @@ class Rule(Strict):
     @model_validator(mode="after")
     def _value_matches_op(self) -> Rule:
         if self.op in OPS_NEEDING_VALUE and self.value is None:
-            raise ValueError(f"Operator {self.op!r} needs a value")
+            raise incomplete(f"Operator {self.op!r} needs a value")
         if self.op not in OPS_NEEDING_VALUE and self.value is not None:
             raise ValueError(f"Operator {self.op!r} does not take a value")
         if self.op in ITEM_CHANGE_OPS and self.field != "change":
@@ -298,9 +305,9 @@ class TriggerConfig(Strict):
     @model_validator(mode="after")
     def _mode_fields(self) -> TriggerConfig:
         if self.mode == "interval" and self.every_minutes is None:
-            raise ValueError("interval mode needs every_minutes")
+            raise incomplete("interval mode needs every_minutes")
         if self.mode == "daily" and self.at_time is None:
-            raise ValueError("daily mode needs at_time (HH:MM)")
+            raise incomplete("daily mode needs at_time (HH:MM)")
         return self
 
 
