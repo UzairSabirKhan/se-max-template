@@ -66,8 +66,9 @@ How a flow is shaped:
   loop to check_page with source_handle "done".
 - After check_page: save_records, then condition steps, then alert steps. A condition's matches leave by
   source_handle "true" (non-matches by "false").
-- A new flow starts with trigger -> check_page linked directly. Remove that link (add_steps "unlink")
-  when you put a source between them.
+- A new flow starts with just a trigger and check_page. Look at the draft below: if they are linked to
+  each other directly, remove that link (add_steps "unlink") when you put a source between them; if
+  they aren't linked, don't unlink anything.
 
 Step settings:
 - trigger: mode "manual" | "interval" (every_minutes >= 1) | "daily" (at_time "HH:MM", timezone).

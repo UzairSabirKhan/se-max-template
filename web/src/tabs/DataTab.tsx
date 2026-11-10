@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Button, Dialog, EmptyState, IconButton, Pill, Spinner, toast } from "../components/ui";
 import { api } from "../lib/api";
 import { cell, dateTime, money, pct, timeAgo } from "../lib/format";
-import type { DataRecord } from "../types/contracts";
+import { fieldNames, type DataRecord } from "../types/contracts";
 
 const PAGE = 25;
 
@@ -68,6 +68,7 @@ export function DataTab({ flowId }: { flowId: string }) {
     if (ds.data?.length && !ds.data.some((d) => d.id === dsId)) setDsId(ds.data[0].id);
   }, [ds.data, dsId]);
   const dataset = ds.data?.find((d) => d.id === dsId);
+  const fields = dataset ? fieldNames(dataset) : [];
   const recs = useQuery({
     queryKey: ["records", dsId, sort, page],
     queryFn: () => api.listRecords(dsId!, { sort: sort || undefined, limit: PAGE, offset: page * PAGE }),
@@ -107,7 +108,7 @@ export function DataTab({ flowId }: { flowId: string }) {
           <table className="w-full text-[13px]">
             <thead className="bg-zinc-50 text-left text-[12px] font-medium text-muted">
               <tr>
-                {[...dataset.fields, "last_changed"].map((f) => (
+                {[...fields, "last_changed"].map((f) => (
                   <th key={f} className="px-3 py-2.5">
                     <button onClick={() => toggleSort(f)} className="flex items-center gap-1 hover:text-ink">
                       {f === "last_changed" ? "Last changed" : f}
@@ -120,11 +121,11 @@ export function DataTab({ flowId }: { flowId: string }) {
             </thead>
             <tbody>
               {recs.isLoading ? (
-                <tr><td colSpan={dataset.fields.length + 2} className="py-10 text-center"><Spinner className="mx-auto" /></td></tr>
+                <tr><td colSpan={fields.length + 2} className="py-10 text-center"><Spinner className="mx-auto" /></td></tr>
               ) : (
                 recs.data?.records.map((r) => (
                   <tr key={r.id} onClick={() => setOpen(r)} className={clsx("cursor-pointer border-t border-line", open?.id === r.id ? "bg-brand-50/50" : "hover:bg-zinc-50", r.removed_at && "text-zinc-400 line-through")}>
-                    {dataset.fields.map((f) => (
+                    {fields.map((f) => (
                       <td key={f} className={clsx("max-w-[280px] truncate px-3 py-2.5", f === "url" && "font-mono text-[11.5px] text-muted", /price/.test(f) && "font-medium tabular-nums")}>{cell(f, r.data[f])}</td>
                     ))}
                     <td className="px-3 py-2.5 text-muted">{r.last_changed ? <Pill tone="blue">{timeAgo(r.last_changed)}</Pill> : "—"}</td>
