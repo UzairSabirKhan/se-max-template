@@ -26,7 +26,7 @@ The user is a small seller or shopper who wants to know when competitors' prices
 5. In the mock shop's admin page (`/shop/admin`), change a price and press **Run now** again. An alert appears in the **Alerts** tab, for example "Blue Kettle: Rs 1,250 → Rs 1,099 (−12%)".
 6. Switch the shop to layout v2 in the admin page and run again. The run is marked **Broken**, nothing is saved, and the last good prices stay in the **Data** tab.
 
-Steps 4 to 6 need the runner, verdicts and alerts, which are still being built: until then a run shows fixed example data. Step-by-step checks with what to look for are in [docs/judge-checks.md](docs/judge-checks.md).
+Step-by-step checks with what to look for are in [docs/judge-checks.md](docs/judge-checks.md).
 
 ## Test accounts
 
@@ -40,8 +40,9 @@ None. There is no sign-in, so every visitor can use the app directly.
 | Assistant: PydanticAI agent with 16 typed tools, Gemini / Groq / Claude fallback, edits shown as proposals to accept or reject, no publish tool | Built and tested with scripted models |
 | Flow schema and graph rules, flow storage with version checks | Built |
 | `safe_fetch` (URL and IP checks, redirects, size and time limits), normalisers, mock shop | Built |
-| Runner, `check_page` verdicts, `save_records`, alerts, scheduler | **In progress.** Until these land, test runs, runs, alerts and data show fixed example data. |
-| Loops and variables at run time, paginate, SUSPECT, CSV export | Planned (M3) |
+| Runner, `check_page` verdicts, `save_records`, conditions, alerts, scheduler, loops, paginate, SUSPECT, CSV export | Built |
+| Variables at run time (watch a list of links), data selector for step settings | Built |
+| PII value scan (FR-34; personal-data field NAMES are already refused) | Planned |
 | Browser steps (click, scroll, type) | Not planned: shown greyed out, refused at publish |
 
 The status of each requirement is in [docs/requirements.md](docs/requirements.md).
@@ -109,7 +110,7 @@ The app refuses to start on a host without `DATABASE_URL`, because the host's di
 
 - Static HTML only. Pages that build themselves with JavaScript are reported as **Unsupported**, not scraped.
 - The assistant is checked by tests with scripted model replies. A recorded real-model reply is still to be added (`uv run pytest -m live -k capture`, with AI keys).
-- The engine core (runner, verdicts, records, alerts, scheduler) is still being built; see the table above.
+- Flow variables are checked when saved but not yet filled in at run time (FR-23), so the link-list flow is the last piece to land.
 - No sign-in: anyone with the URL can see and edit every flow. Fine for a judged demo, not for real users.
 - The assistant's rate limit (10 messages a minute per client) is kept in memory, so it resets when the app restarts.
 
