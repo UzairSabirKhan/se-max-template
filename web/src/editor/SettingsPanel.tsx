@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Button, Field, IconButton, Input, Segmented, Select, Toggle } from "../components/ui";
 import { isVarRef, knownFields, stepNumbers } from "../lib/flow";
 import { NODE_META, TONE } from "../lib/nodeMeta";
-import { useEditor } from "../store/editor";
+import { useEditor, useIssues } from "../store/editor";
 import type { Flow, FlowNode, Issue, VariableType } from "../types/contracts";
 import { DataPanel } from "./DataPanel";
 import { sampleText, useStepData } from "./useStepData";
@@ -297,7 +297,7 @@ function Form({ node, flow, issues, upstream }: { node: FlowNode; flow: Flow; is
     case "save_records":
       return (
         <div className="space-y-4">
-          <Field label="Dataset name" required error={e("dataset")} hint="Unique in this flow. Shown in the Data tab.">
+          <Field label="Dataset name" required error={e("dataset")} hint="Unique in this flow. Shown on the Data page.">
             <Input mono value={c.dataset ?? ""} onChange={(ev) => set({ dataset: ev.target.value.replace(/\s+/g, "_").toLowerCase() })} placeholder="shop_prices" invalid={!!e("dataset")} />
           </Field>
           <Field label="Identity field" hint="Defaults to the list's identity field. Use url after a loop over links.">
@@ -370,7 +370,7 @@ const Note = ({ children }: { children: ReactNode }) => (
 export function SettingsPanel({ onTestNode }: { onTestNode: (id: string) => void }) {
   const draft = useEditor((s) => s.draft);
   const selectedId = useEditor((s) => s.selectedId);
-  const allIssues = useEditor((s) => s.issues);
+  const allIssues = useIssues();
   const select = useEditor((s) => s.select);
   const removeNode = useEditor((s) => s.removeNode);
   const stepData = useStepData(selectedId);

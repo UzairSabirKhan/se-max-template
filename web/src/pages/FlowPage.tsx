@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ReactFlowProvider } from "@xyflow/react";
 import clsx from "clsx";
-import { AlertCircle, Bell, Braces, Check, ChevronRight, CloudOff, Database, History, Info, Loader2, MoreHorizontal, Play, Rocket, Settings2, Sparkles, Trash2, Undo2, Workflow } from "lucide-react";
+import { AlertCircle, Bell, Braces, Check, ChevronRight, CloudOff, Download, History, Info, Loader2, MoreHorizontal, Play, Rocket, Settings2, Sparkles, Trash2, Undo2, Workflow } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useShell } from "../components/AppShell";
@@ -17,13 +17,12 @@ import { flowsEqual } from "../lib/flow";
 import { timeAgo } from "../lib/format";
 import { useEditor, type RightPanel } from "../store/editor";
 import { AlertsTab } from "../tabs/AlertsTab";
-import { DataTab } from "../tabs/DataTab";
 import { RunsTab } from "../tabs/RunsTab";
 import { StatusPill } from "./FlowsPage";
 import { NextRun } from "../components/NextRun";
 import { VERDICT_STYLE } from "../components/ui";
 
-type Tab = "editor" | "runs" | "alerts" | "data";
+type Tab = "editor" | "runs" | "alerts";
 
 /** Debounced autosave of the draft (PUT /api/flows/{id}). */
 function useAutosave() {
@@ -114,7 +113,7 @@ function NameEditor() {
 
 export function FlowPage() {
   const { id = "", tab: tabParam } = useParams();
-  const tab = (["runs", "alerts", "data"].includes(tabParam ?? "") ? tabParam : "editor") as Tab;
+  const tab = (["runs", "alerts"].includes(tabParam ?? "") ? tabParam : "editor") as Tab;
   const nav = useNavigate();
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
@@ -250,6 +249,26 @@ export function FlowPage() {
     }
   };
 
+  /** Download the flow on the canvas (saved or not) as a JSON file. Proposals not yet accepted are left out. */
+  const exportFlow = () => {
+    const s = useEditor.getState();
+    const file = {
+      format: "scrapeonce.flow",
+      version: 1,
+      name: s.name,
+      exported_at: new Date().toISOString(),
+      flow: { variables: s.draft.variables, nodes: s.draft.nodes, edges: s.draft.edges },
+    };
+    const slug = s.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "flow";
+    const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slug}.scrapeonce.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.success("Workflow exported", `${slug}.scrapeonce.json`);
+  };
+
   const doConfirm = async () => {
     const c = confirm;
     setConfirm(null);
@@ -271,10 +290,18 @@ export function FlowPage() {
     }
   };
 
-  // Keyboard: Ctrl+D test flow, Ctrl+S save now.
+  // Keyboard: Ctrl+D test flow, Ctrl+S save now, Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y undo and redo.
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
+      const key = e.key.toLowerCase();
+      const typing = e.target instanceof HTMLElement && (e.target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName));
+      if (tab === "editor" && !typing && (key === "z" || key === "y")) {
+        e.preventDefault(); // in a text box the browser's own undo handles the typing
+        if (key === "z" && !e.shiftKey) useEditor.getState().undo();
+        else useEditor.getState().redo();
+        return;
+      }
       if (e.key.toLowerCase() === "d" && tab === "editor") {
         e.preventDefault();
         void testFlow();
@@ -296,7 +323,6 @@ export function FlowPage() {
     { id: "editor", label: "Editor", icon: <Workflow className="size-3.5" /> },
     { id: "runs", label: "Runs", icon: <History className="size-3.5" /> },
     { id: "alerts", label: "Alerts", icon: <Bell className="size-3.5" />, badge: unread },
-    { id: "data", label: "Data", icon: <Database className="size-3.5" /> },
   ];
 
   return (
@@ -334,7 +360,11 @@ export function FlowPage() {
             <MoreHorizontal className="size-4" />
           </button>
           {menu && (
-            <div className="absolute right-0 top-9 z-30 w-48 rounded-lg border border-line bg-white p-1 shadow-pop" onMouseLeave={() => setMenu(false)}>
+            <div className="absolute right-0 top-9 z-30 w-52 rounded-lg border border-line bg-white p-1 shadow-pop" onMouseLeave={() => setMenu(false)}>
+              <button onClick={() => { setMenu(false); exportFlow(); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] hover:bg-zinc-100">
+                <Download className="size-3.5" /> Export workflow (.json)
+              </button>
+              <div className="my-1 h-px bg-line" />
               <button disabled={!st.published} onClick={() => { setMenu(false); setConfirm("unpublish"); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] hover:bg-zinc-100 disabled:opacity-40">
                 <Undo2 className="size-3.5" /> Unpublish
               </button>
@@ -379,7 +409,6 @@ export function FlowPage() {
         <div className="min-h-0 flex-1 overflow-hidden bg-zinc-50/40">
           {tab === "runs" && <RunsTab flowId={id} flow={st.published ?? st.draft} />}
           {tab === "alerts" && <AlertsTab flowId={id} />}
-          {tab === "data" && <DataTab flowId={id} />}
         </div>
       )}
 

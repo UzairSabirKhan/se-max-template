@@ -12,13 +12,13 @@ import {
   type NodeChange,
 } from "@xyflow/react";
 import clsx from "clsx";
-import { Check, FlaskConical, Hand, Map as MapIcon, Maximize, Minus, MousePointer2, Network, Plus, Sparkles, X } from "lucide-react";
+import { Check, FlaskConical, Hand, Map as MapIcon, Maximize, Minus, MousePointer2, Network, Plus, Redo2, Sparkles, Undo2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, IconButton, Kbd, toast } from "../components/ui";
-import { pendingMarks, previewOps, stepNumbers, summarizeOps } from "../lib/flow";
+import { beforeCheck, pendingMarks, previewOps, stepNumbers, summarizeOps } from "../lib/flow";
 import { NODE_H, NODE_W, autoLayout, loopSizesOf } from "../lib/layout";
 import { NODE_META } from "../lib/nodeMeta";
-import { useEditor } from "../store/editor";
+import { useEditor, useIssues } from "../store/editor";
 import type { NodeType } from "../types/contracts";
 import { edgeTypes } from "./edges";
 import { nodeTypes, type StepData } from "./nodes";
@@ -29,7 +29,7 @@ const BODY_OK: NodeType[] = ["fetch_item_page", "extract_fields", "condition", "
 export function Canvas({ onTestNode, onTestFlow, testing }: { onTestNode: (id: string) => void; onTestFlow: () => void; testing: boolean }) {
   const draft = useEditor((s) => s.draft);
   const pending = useEditor((s) => s.pending);
-  const issues = useEditor((s) => s.issues);
+  const issues = useIssues();
   const run = useEditor((s) => s.run);
   const selectedId = useEditor((s) => s.selectedId);
   const flowId = useEditor((s) => s.flowId);
@@ -38,6 +38,8 @@ export function Canvas({ onTestNode, onTestFlow, testing }: { onTestNode: (id: s
   const [panMode, setPanMode] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
+  const canUndo = useEditor((s) => s.past.length > 0 || s.pending.length > 0);
+  const canRedo = useEditor((s) => s.future.length > 0 && !s.pending.length);
 
   const view = useMemo(() => {
     if (pending.length) return autoLayout(previewOps(draft, pending));
@@ -72,6 +74,7 @@ export function Canvas({ onTestNode, onTestFlow, testing }: { onTestNode: (id: s
       const b = view.flow.nodes.find((n) => n.id === t);
       return !!(a?.parentId || b?.parentId || a?.type === "for_each" && b?.parentId);
     };
+    const line = beforeCheck(view.flow);
     const edges: Edge[] = view.flow.edges.map((e) => {
       const mark = marks.edges[e.id];
       const running = run && run.nodes[e.source]?.state === "done" && run.nodes[e.target]?.state === "running";
@@ -83,7 +86,7 @@ export function Canvas({ onTestNode, onTestFlow, testing }: { onTestNode: (id: s
         targetHandle: e.targetHandle ?? null,
         type: "insert",
         deletable: !pending.length,
-        data: { mark, insideLoop: insideLoop(e.source, e.target) || e.sourceHandle === "item" || e.targetHandle === "next", readOnly: !!pending.length },
+        data: { mark, insideLoop: insideLoop(e.source, e.target) || e.sourceHandle === "item" || e.targetHandle === "next", beforeCheck: line.has(e.source) && e.sourceHandle !== "item", readOnly: !!pending.length },
         className: clsx(mark && `edge-pending-${mark}`, running && "edge-running"),
         markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: mark === "add" ? "#22c55e" : mark === "remove" ? "#ef4444" : "#b4b4c0" },
         zIndex: e.sourceHandle === "item" || e.targetHandle === "next" || insideLoop(e.source, e.target) ? 1 : 0,
@@ -195,6 +198,9 @@ export function Canvas({ onTestNode, onTestFlow, testing }: { onTestNode: (id: s
 
       {/* bottom toolbar */}
       <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-0.5 rounded-xl border border-line bg-white p-1 shadow-pop">
+        <IconButton label="Undo (Ctrl+Z)" disabled={!canUndo} onClick={() => useEditor.getState().undo()}><Undo2 className="size-4" /></IconButton>
+        <IconButton label="Redo (Ctrl+Shift+Z)" disabled={!canRedo} onClick={() => useEditor.getState().redo()}><Redo2 className="size-4" /></IconButton>
+        <span className="mx-1 h-5 w-px bg-line" />
         <IconButton label="Zoom in" onClick={() => rf.zoomIn({ duration: 150 })}><Plus className="size-4" /></IconButton>
         <IconButton label="Zoom out" onClick={() => rf.zoomOut({ duration: 150 })}><Minus className="size-4" /></IconButton>
         <IconButton label="Fit to screen" onClick={() => rf.fitView({ padding: 0.18, maxZoom: 1, duration: 250 })}><Maximize className="size-4" /></IconButton>

@@ -1,4 +1,4 @@
-import type { Flow, FlowNode, FlowOp, Issue } from "../types/contracts";
+import type { Flow, FlowNode, FlowOp, Issue, NodeType } from "../types/contracts";
 import { NODE_META } from "./nodeMeta";
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -201,6 +201,70 @@ export function validateFlow(flow: Flow, mode: "save" | "publish"): Issue[] {
       });
   }
   return issues;
+}
+
+/** Steps that may sit before Check page: they run in one line, with no branches. */
+export const BEFORE_CHECK_TYPES: NodeType[] = ["fetch_page", "paginate", "extract_list"];
+
+/** Ids of the top-level steps that lead into Check page (the trigger, the fetch, ...). */
+export function beforeCheck(flow: Flow): Set<string> {
+  const ids = new Set<string>();
+  const check = flow.nodes.find((n) => n.type === "check_page");
+  if (!check) return ids;
+  const top = new Set(flow.nodes.filter((n) => !n.parentId).map((n) => n.id));
+  const stack = [check.id];
+  while (stack.length) {
+    const id = stack.pop()!;
+    for (const e of flow.edges)
+      if (e.target === id && top.has(e.source) && e.sourceHandle !== "item" && e.targetHandle !== "next" && !ids.has(e.source)) {
+        ids.add(e.source);
+        stack.push(e.source);
+      }
+  }
+  return ids;
+}
+
+/**
+ * The server only checks the line up to Check page when you test or publish; this shows it while
+ * you edit: a branch before Check page, a step there that belongs after it, a step that skips it.
+ */
+export function lineProblems(flow: Flow): Issue[] {
+  const line = beforeCheck(flow);
+  const check = flow.nodes.find((n) => n.type === "check_page");
+  if (!check || !line.size) return [];
+  const issues: Issue[] = [];
+  const reach = (from: string[]) => {
+    const seen = new Set<string>();
+    const stack = [...from];
+    while (stack.length) {
+      const id = stack.pop()!;
+      for (const e of flow.edges)
+        if (e.source === id && e.sourceHandle !== "item" && e.targetHandle !== "next" && !seen.has(e.target)) {
+          seen.add(e.target);
+          stack.push(e.target);
+        }
+    }
+    return seen;
+  };
+  for (const id of line) {
+    const n = flow.nodes.find((x) => x.id === id)!;
+    if (flow.edges.filter((e) => e.source === id && e.sourceHandle !== "item").length > 1)
+      issues.push({ node_id: id, path: "edges", message: "This step leads to two steps. Steps up to Check page run in one line: move the extra step after Check page." });
+    if (n.type !== "trigger" && !BEFORE_CHECK_TYPES.includes(n.type))
+      issues.push({ node_id: id, path: "type", message: `${NODE_META[n.type].label} goes after Check page, so it only sees checked data.` });
+  }
+  const afterCheck = reach([check.id]);
+  for (const id of reach([...line]))
+    if (id !== check.id && !line.has(id) && !afterCheck.has(id))
+      issues.push({ node_id: id, path: "edges", message: "This step skips Check page, so it would use data that wasn't checked. Connect it after Check page." });
+  return issues;
+}
+
+/** Why a step of this type can't go right after `sourceId`, or null if it can. */
+export function placementProblem(flow: Flow, sourceId: string, type: NodeType): string | null {
+  if (beforeCheck(flow).has(sourceId) && !BEFORE_CHECK_TYPES.includes(type))
+    return "Steps that use the data go after Check page, so every run is checked first.";
+  return null;
 }
 
 export function nodeById(flow: Flow, id: string): FlowNode | undefined {

@@ -1,13 +1,14 @@
 import clsx from "clsx";
 import { Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { BEFORE_CHECK_TYPES } from "../lib/flow";
 import { NODE_META, PALETTE_GROUPS, TONE } from "../lib/nodeMeta";
 import type { NodeType } from "../types/contracts";
 
 const BODY_OK: NodeType[] = ["fetch_item_page", "extract_fields", "condition", "wait"];
 
 /** Small searchable menu used by the "+" buttons on edges and under nodes. */
-export function NodePicker({ insideLoop, onPick, onClose }: { insideLoop: boolean; onPick: (t: NodeType) => void; onClose: () => void }) {
+export function NodePicker({ insideLoop, beforeCheck = false, onPick, onClose }: { insideLoop: boolean; beforeCheck?: boolean; onPick: (t: NodeType) => void; onClose: () => void }) {
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -27,6 +28,7 @@ export function NodePicker({ insideLoop, onPick, onClose }: { insideLoop: boolea
       const m = NODE_META[t];
       if (t === "check_page") return false; // exactly one, always present
       if (insideLoop ? !BODY_OK.includes(t) : m.bodyOnly) return false;
+      if (beforeCheck && !BEFORE_CHECK_TYPES.includes(t)) return false; // the rest go after Check page
       return !q || m.label.toLowerCase().includes(q.toLowerCase()) || m.blurb.toLowerCase().includes(q.toLowerCase());
     }),
   })).filter((g) => g.types.length && g.group !== "Browser");
