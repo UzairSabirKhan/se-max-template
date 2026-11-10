@@ -147,4 +147,6 @@ function createLiveApi(): Api {
   };
 }
 
-export const api: Api = import.meta.env.VITE_API_MODE === "live" ? createLiveApi() : createMockApi();
+// Live (the real FastAPI backend) unless mock is asked for explicitly. Defaulting to mock would
+// make a production build show invented data from the in-browser fake API.
+export const api: Api = import.meta.env.VITE_API_MODE === "mock" ? createMockApi() : createLiveApi();

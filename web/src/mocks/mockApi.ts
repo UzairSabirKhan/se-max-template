@@ -1,5 +1,5 @@
 // In-browser fake of the C3 REST API and C5 agent stream.
-// Used while Workstream A's backend is still stubs (VITE_API_MODE=mock, the default).
+// Used while Workstream A's backend is still stubs (opt in with VITE_API_MODE=mock; the default is live).
 import type { Api, AgentRequest } from "../lib/api";
 import { ApiError } from "../lib/errors";
 import { applyOps, clone, isVarRef, newId, stepNumbers, validateFlow } from "../lib/flow";

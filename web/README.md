@@ -12,8 +12,8 @@ npm run build      # type-check + build to web/dist (served by FastAPI)
 
 ## API mode
 
-- `VITE_API_MODE=mock` (default): an in-browser fake of the C3 REST API and C5 agent stream (`src/mocks/`). No backend needed. Seed data lives in `localStorage`; run `__resetMock()` in the browser console to restore it.
-- `VITE_API_MODE=live`: calls FastAPI at `/api` (Vite proxies `/api`, `/health` and `/shop` to `:8000` in dev).
+- `VITE_API_MODE=mock` (opt in, local only): an in-browser fake of the C3 REST API and C5 agent stream (`src/mocks/`). No backend needed. Seed data lives in `localStorage`; run `__resetMock()` in the browser console to restore it.
+- `VITE_API_MODE=live` or unset (**default; what production builds use**): calls FastAPI at `/api` (Vite proxies `/api`, `/health` and `/shop` to `:8000` in dev).
 
 ## Layout
 
