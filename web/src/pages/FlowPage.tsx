@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ReactFlowProvider } from "@xyflow/react";
 import clsx from "clsx";
-import { AlertCircle, Bell, Braces, Check, ChevronRight, CloudOff, Download, History, Info, Loader2, MoreHorizontal, Play, Rocket, Settings2, Sparkles, Trash2, Undo2, Workflow } from "lucide-react";
+import { AlertCircle, Bell, Braces, Check, ChevronRight, CloudOff, Database, Download, History, Info, Loader2, MoreHorizontal, Play, Rocket, Settings2, Sparkles, Trash2, Undo2, Workflow } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useShell } from "../components/AppShell";
@@ -15,6 +15,7 @@ import { VariablesPanel } from "../editor/VariablesPanel";
 import { api, ApiError } from "../lib/api";
 import { flowsEqual } from "../lib/flow";
 import { timeAgo } from "../lib/format";
+import { DataTab } from "../tabs/DataTab";
 import { useEditor, type RightPanel } from "../store/editor";
 import { AlertsTab } from "../tabs/AlertsTab";
 import { RunsTab } from "../tabs/RunsTab";
@@ -22,7 +23,7 @@ import { StatusPill } from "./FlowsPage";
 import { NextRun } from "../components/NextRun";
 import { VERDICT_STYLE } from "../components/ui";
 
-type Tab = "editor" | "runs" | "alerts";
+type Tab = "editor" | "runs" | "alerts" | "data";
 
 /** Debounced autosave of the draft (PUT /api/flows/{id}). */
 function useAutosave() {
@@ -113,7 +114,7 @@ function NameEditor() {
 
 export function FlowPage() {
   const { id = "", tab: tabParam } = useParams();
-  const tab = (["runs", "alerts"].includes(tabParam ?? "") ? tabParam : "editor") as Tab;
+  const tab = (["runs", "alerts", "data"].includes(tabParam ?? "") ? tabParam : "editor") as Tab;
   const nav = useNavigate();
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
@@ -323,6 +324,7 @@ export function FlowPage() {
     { id: "editor", label: "Editor", icon: <Workflow className="size-3.5" /> },
     { id: "runs", label: "Runs", icon: <History className="size-3.5" /> },
     { id: "alerts", label: "Alerts", icon: <Bell className="size-3.5" />, badge: unread },
+    { id: "data", label: "Data", icon: <Database className="size-3.5" /> },
   ];
 
   return (
@@ -409,6 +411,7 @@ export function FlowPage() {
         <div className="min-h-0 flex-1 overflow-hidden bg-zinc-50/40">
           {tab === "runs" && <RunsTab flowId={id} flow={st.published ?? st.draft} />}
           {tab === "alerts" && <AlertsTab flowId={id} />}
+          {tab === "data" && <DataTab flowId={id} />}
         </div>
       )}
 

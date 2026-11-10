@@ -297,7 +297,7 @@ function Form({ node, flow, issues, upstream }: { node: FlowNode; flow: Flow; is
     case "save_records":
       return (
         <div className="space-y-4">
-          <Field label="Dataset name" required error={e("dataset")} hint="Unique in this flow. Shown on the Data page.">
+          <Field label="Dataset name" required error={e("dataset")} hint="Unique in this flow. Shown in the Data tab and on the Data page.">
             <Input mono value={c.dataset ?? ""} onChange={(ev) => set({ dataset: ev.target.value.replace(/\s+/g, "_").toLowerCase() })} placeholder="shop_prices" invalid={!!e("dataset")} />
           </Field>
           <Field label="Identity field" hint="Defaults to the list's identity field. Use url after a loop over links.">
