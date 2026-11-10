@@ -60,3 +60,6 @@ htmlcov/
 Thumbs.db
 .idea/
 .vscode/
+
+# Browser automation output
+.playwright-mcp/

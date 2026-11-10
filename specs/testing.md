@@ -184,6 +184,8 @@ Every bug found by tests, red-teaming or review. AI-written bugs are marked "(AI
 | D-14 | (AI) Exported contract files could go stale with no check | Senior review → `test_exported_contract_files_are_up_to_date` | Medium | Fixed | Pending |
 | D-15 | (AI) Flow store was in memory: every restart, deploy or Render sleep deleted all flows | Review of A5 → `tests/api/test_persistence.py::test_flows_survive_a_restart` + kill/restart of real uvicorn | High | Fixed (A7/A8: SQLAlchemy; Neon Postgres in production, SQLite file locally) | Pending |
 | D-16 | (AI) Version check was check-then-write: two saves racing on one version could both succeed, one silently lost | Review of A5 → `test_two_saves_racing_on_one_version_cannot_both_win` | High | Fixed (single conditional `UPDATE ... WHERE draft_version = :expected`) | Pending |
+| D-17 | (AI) Draft validation required every field, so the editor could not save after adding ANY step with settings (fetch page, extract, condition, alert...): every save returned 422 | Integration test after merging both branches: real UI in a browser against the real backend | Critical | Fixed: unfilled settings allowed in drafts, wrong values still refused, dry run/publish still require everything (`test_a_newly_dropped_step_can_be_saved_as_draft`, `test_editor_can_save_a_new_empty_step_then_fill_it_in`) | Pending |
+| D-18 | Frontend defaulted to the in-browser MOCK API when `VITE_API_MODE` was unset, so a production build would show invented data | Integration review after merge | High | Fixed: live by default, mock only when explicitly requested; mock code confirmed absent from the production bundle | Pending |
 
 ## Known untested areas
 
