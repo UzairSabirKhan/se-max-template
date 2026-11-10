@@ -37,6 +37,12 @@ flowchart LR
 - **Draft and published copies.** Edits go to the draft. **Publish** copies the draft to the published copy and registers its schedule. The scheduler and "Run now" only ever run the published copy.
 - **The agent edits the draft only.** Only the user can publish.
 
+Related documents:
+- [Requirements](requirements.md): FR and NFR IDs referenced below.
+- [Contracts](../specs/contracts.md): exact flow JSON, API shapes, agent events.
+- [Workstreams](../specs/workstreams.md): the build split into two parallel streams.
+- [Architecture decisions](../specs/adr/).
+
 ## Components
 
 | Component | Responsibility | Technology |
@@ -50,8 +56,8 @@ flowchart LR
 | Fetcher | `safe_fetch()`: http/https only, IPs checked after DNS lookup and after every redirect (at most 3), timeouts, 2 MB cap | httpx (async) |
 | Classifier | One verdict per run (BLOCKED, UNSUPPORTED, BROKEN, SUSPECT, CHANGED, OK, UNKNOWN) | `app/engine/classify.py` (pure function) |
 | Scheduler | One job per published flow, built from its Trigger node; rebuilt from the database at startup | APScheduler 3.x (AsyncIOScheduler) |
-| Database | Flows, runs, item snapshots, alerts | Neon Postgres, SQLAlchemy 2 + asyncpg |
-| Mock shop | Our own test site: v1, v2 layout, blocked, JavaScript shell, duplicates | FastAPI + Jinja at `/shop` |
+| Database | Flows, runs, datasets, records, record changes, alerts | Neon Postgres, SQLAlchemy 2 + asyncpg |
+| Mock shop | Our own test site with invented data: v1 list (2 pages), v2 layout, blocked, JavaScript shell, duplicates, product pages, admin (change price, remove product, switch layout), and robustness pages `/shop/huge`, `/shop/slow`, `/shop/file.pdf`, `/shop/redirect-internal` | FastAPI + Jinja at `/shop` (Jinja is used only for the mock shop) |
 
 ## Flow model
 

@@ -18,6 +18,8 @@ Required by the event rules. Log every meaningful use of AI tools during the bui
 | ~10:10 | Kaleem | Claude Code | Design publish lifecycle, schedule-in-flow, branches, per-flow alerts | **Changed by team:** schedule lives in the Trigger node; branches added; auth dropped for the hackathon. AI proposed that only the user can publish; team kept it | Team review |
 | ~10:20 | Kaleem | Claude Code | Design record storage, loops and variables for price tracking and multi-link watching | Accepted `save_records` datasets, bounded `for_each` container, typed variables as `{"var"}` references (rejected template strings for injection safety) | Team review; to be verified by tests EC-29 – EC-48 |
 | 10:35 | Kaleem | Claude Code | Write requirements, testing plan, judge checks, ADRs and README according to the judging criteria | Accepted as a starting point; all results left `Pending` until real runs | Team review pending |
+| ~10:45 | Kaleem | Claude Code | Split the build into two parallel workstreams with frozen contracts, covering every feature | Accepted `specs/workstreams.md` (A: engine and platform, B: editor and agent) and `specs/contracts.md`, with a coverage matrix mapping every FR, NFR and edge case to a task | Coverage matrix checked against requirements.md |
+| 10:50 | Kaleem | Claude Code | Move generated docs into `specs/`, then complete the template `docs/` files so everything is aligned | Accepted; template docs filled from `specs/`; links checked | Link check script; manual read-through pending |
 
 ## Reflection
 
