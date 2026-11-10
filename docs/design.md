@@ -192,6 +192,11 @@ When `for_each` runs over a `url_list`, each URL becomes one item `{"url": ...}`
 
 ### Graph rules (checked by Pydantic on every save, agent edit and publish)
 
+Checks run at three levels (`app/flow/validate.py`):
+- **Draft** (every save and agent edit): schema, handles, loop walls and nesting, cycles, variable references. A half-built flow can be saved; an unsafe one cannot.
+- **Run** (dry run and every run): all of the rules below, including the spine, reachability, fields and condition operators.
+- **Publish**: run level, and browser nodes are refused.
+
 - The graph is a **DAG**: cycles are rejected (checked with a topological sort). At most 30 nodes.
 - Exactly **one** `trigger`, then a **source** that produces items, then `check_page`. Branching starts **after** `check_page`. The source is one of:
   - **one list page:** `fetch_page` → (`paginate`) → `extract_list`
@@ -254,7 +259,6 @@ Typical use: open each article's detail page, read fields that aren't on the lis
 | Trigger | `trigger` | start | `mode`: `manual` \| `interval` (`every_minutes` ≥ 1) \| `daily` (`at_time`, `timezone`) |
 | Source | `fetch_page` | page | `url` (http/https; checked again at run time) |
 | Navigate | `paginate` | pages | `next_selector`, `max_pages` ≤ 5 |
-| Navigate | `follow_links` | pages | `link_selector`, `max_links` ≤ 20 |
 | Extract | `extract_list` | items | `base_selector`, `fields[]`, `identity_key`, `page_anchor`, `expected_count` |
 | Check | `check_page` | items → items; page-level verdict (BLOCKED, UNSUPPORTED, BROKEN or UNKNOWN stops the run) | — (`page_anchor` and `expected_count` live in `extract_list`) |
 | Store | `save_records` | items → items labelled `change` (new / changed / same / removed / suspect) with `previous` and `pct_change`; sets verdict CHANGED, OK or SUSPECT | `dataset`, `identity_key` (defaults to `extract_list`'s; required after a `for_each` over a variable, usually `url`), `track_fields[]`, `alert_on_first_run` (default false) |
@@ -455,4 +459,6 @@ Public product data from our own mock shop only. No accounts and no personal dat
 - Static HTML only. Pages that load their data with JavaScript get an UNSUPPORTED verdict.
 - Scheduled runs pause if Render sleeps and the keep-alive ping fails.
 - No version history: republishing replaces the live copy.
+- **No schema migrations:** tables are created at startup. Adding a column to an existing table during the event means resetting the database.
+- **Storage:** Neon Postgres in production (`DATABASE_URL`). Without it the app uses a local SQLite file, and refuses to start on Render, whose disk is wiped on every deploy.
 - DNS rebinding between the check and the connection is reduced by pinning the resolved IP; any path we can't pin is listed here once tested.

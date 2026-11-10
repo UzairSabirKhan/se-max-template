@@ -1,0 +1,1513 @@
+{
+  "$defs": {
+    "AlertConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "level": {
+          "default": "info",
+          "enum": [
+            "info",
+            "warning"
+          ],
+          "title": "Level",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "title": "AlertConfig",
+      "type": "object"
+    },
+    "AlertNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "alert",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/AlertConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "config"
+      ],
+      "title": "AlertNode",
+      "type": "object"
+    },
+    "CheckPageConfig": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "CheckPageConfig",
+      "type": "object"
+    },
+    "CheckPageNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "check_page",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/CheckPageConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "title": "CheckPageNode",
+      "type": "object"
+    },
+    "ClickConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "selector": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Selector",
+          "type": "string"
+        }
+      },
+      "required": [
+        "selector"
+      ],
+      "title": "ClickConfig",
+      "type": "object"
+    },
+    "ClickNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "click",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/ClickConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "config"
+      ],
+      "title": "ClickNode",
+      "type": "object"
+    },
+    "ConditionConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "match": {
+          "default": "all",
+          "enum": [
+            "all",
+            "any"
+          ],
+          "title": "Match",
+          "type": "string"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/Rule"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "title": "Rules",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rules"
+      ],
+      "title": "ConditionConfig",
+      "type": "object"
+    },
+    "ConditionNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "condition",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/ConditionConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "config"
+      ],
+      "title": "ConditionNode",
+      "type": "object"
+    },
+    "CountRange": {
+      "additionalProperties": false,
+      "properties": {
+        "min": {
+          "maximum": 500,
+          "minimum": 0,
+          "title": "Min",
+          "type": "integer"
+        },
+        "max": {
+          "maximum": 500,
+          "minimum": 1,
+          "title": "Max",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ],
+      "title": "CountRange",
+      "type": "object"
+    },
+    "ExtractFieldsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/FieldSpec"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Fields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "fields"
+      ],
+      "title": "ExtractFieldsConfig",
+      "type": "object"
+    },
+    "ExtractFieldsNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "extract_fields",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/ExtractFieldsConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "config"
+      ],
+      "title": "ExtractFieldsNode",
+      "type": "object"
+    },
+    "ExtractListConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "base_selector": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Base Selector",
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/FieldSpec"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Fields",
+          "type": "array"
+        },
+        "identity_key": {
+          "pattern": "^[a-z][a-z0-9_]{0,39}$",
+          "title": "Identity Key",
+          "type": "string"
+        },
+        "page_anchor": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Anchor"
+        },
+        "expected_count": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CountRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "base_selector",
+        "fields",
+        "identity_key"
+      ],
+      "title": "ExtractListConfig",
+      "type": "object"
+    },
+    "ExtractListNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "extract_list",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/ExtractListConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "config"
+      ],
+      "title": "ExtractListNode",
+      "type": "object"
+    },
+    "FetchItemPageConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "url_field": {
+          "default": "url",
+          "pattern": "^[a-z][a-z0-9_]{0,39}$",
+          "title": "Url Field",
+          "type": "string"
+        }
+      },
+      "title": "FetchItemPageConfig",
+      "type": "object"
+    },
+    "FetchItemPageNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "fetch_item_page",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/FetchItemPageConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "title": "FetchItemPageNode",
+      "type": "object"
+    },
+    "FetchPageConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/VarRef"
+            }
+          ],
+          "title": "Url"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "title": "FetchPageConfig",
+      "type": "object"
+    },
+    "FetchPageNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "fetch_page",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/FetchPageConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "config"
+      ],
+      "title": "FetchPageNode",
+      "type": "object"
+    },
+    "FieldSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9_]{0,39}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "selector": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Selector",
+          "type": "string"
+        },
+        "attr": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z_:][-A-Za-z0-9_:.]{0,39}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attr"
+        },
+        "type": {
+          "enum": [
+            "text",
+            "price",
+            "int",
+            "url",
+            "date",
+            "stock"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "selector",
+        "type"
+      ],
+      "title": "FieldSpec",
+      "type": "object"
+    },
+    "FlowEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "source": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Source",
+          "type": "string"
+        },
+        "target": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Target",
+          "type": "string"
+        },
+        "sourceHandle": {
+          "anyOf": [
+            {
+              "enum": [
+                "true",
+                "false",
+                "item",
+                "done"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourcehandle"
+        },
+        "targetHandle": {
+          "anyOf": [
+            {
+              "const": "next",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Targethandle"
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "target"
+      ],
+      "title": "FlowEdge",
+      "type": "object"
+    },
+    "ForEachConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "const": "items",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/VarRef"
+            }
+          ],
+          "default": "items",
+          "title": "Source"
+        },
+        "max_items": {
+          "default": 25,
+          "maximum": 25,
+          "minimum": 1,
+          "title": "Max Items",
+          "type": "integer"
+        },
+        "on_error": {
+          "default": "skip",
+          "enum": [
+            "skip",
+            "stop"
+          ],
+          "title": "On Error",
+          "type": "string"
+        }
+      },
+      "title": "ForEachConfig",
+      "type": "object"
+    },
+    "ForEachNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "for_each",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/ForEachConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "title": "ForEachNode",
+      "type": "object"
+    },
+    "PaginateConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "next_selector": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Next Selector",
+          "type": "string"
+        },
+        "max_pages": {
+          "default": 3,
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Max Pages",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "next_selector"
+      ],
+      "title": "PaginateConfig",
+      "type": "object"
+    },
+    "PaginateNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "paginate",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/PaginateConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "config"
+      ],
+      "title": "PaginateNode",
+      "type": "object"
+    },
+    "Position": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "default": 0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "title": "Position",
+      "type": "object"
+    },
+    "ResultsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ResultsConfig",
+      "type": "object"
+    },
+    "ResultsNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "results",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/ResultsConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "config"
+      ],
+      "title": "ResultsNode",
+      "type": "object"
+    },
+    "Rule": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "pattern": "^[a-z][a-z0-9_]{0,39}$",
+          "title": "Field",
+          "type": "string"
+        },
+        "op": {
+          "enum": [
+            "lt",
+            "lte",
+            "gt",
+            "gte",
+            "eq",
+            "neq",
+            "contains",
+            "not_contains",
+            "is_empty",
+            "not_empty",
+            "is_new",
+            "is_removed",
+            "changed",
+            "increased",
+            "decreased",
+            "drop_pct_gt",
+            "rise_pct_gt",
+            "in_stock",
+            "out_of_stock",
+            "back_in_stock"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/VarRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "field",
+        "op"
+      ],
+      "title": "Rule",
+      "type": "object"
+    },
+    "SaveRecordsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "dataset": {
+          "pattern": "^[a-z][a-z0-9_]{0,39}$",
+          "title": "Dataset",
+          "type": "string"
+        },
+        "identity_key": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,39}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Identity Key"
+        },
+        "track_fields": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Track Fields",
+          "type": "array"
+        },
+        "alert_on_first_run": {
+          "default": false,
+          "title": "Alert On First Run",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "dataset",
+        "track_fields"
+      ],
+      "title": "SaveRecordsConfig",
+      "type": "object"
+    },
+    "SaveRecordsNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "save_records",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/SaveRecordsConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "config"
+      ],
+      "title": "SaveRecordsNode",
+      "type": "object"
+    },
+    "ScrollConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "times": {
+          "default": 1,
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Times",
+          "type": "integer"
+        }
+      },
+      "title": "ScrollConfig",
+      "type": "object"
+    },
+    "ScrollNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "scroll",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/ScrollConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "title": "ScrollNode",
+      "type": "object"
+    },
+    "TriggerConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "manual",
+          "enum": [
+            "manual",
+            "interval",
+            "daily"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "every_minutes": {
+          "anyOf": [
+            {
+              "maximum": 1440,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Every Minutes"
+        },
+        "at_time": {
+          "anyOf": [
+            {
+              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "At Time"
+        },
+        "timezone": {
+          "default": "Asia/Karachi",
+          "title": "Timezone",
+          "type": "string"
+        }
+      },
+      "title": "TriggerConfig",
+      "type": "object"
+    },
+    "TriggerNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "trigger",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/TriggerConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "title": "TriggerNode",
+      "type": "object"
+    },
+    "TypeTextConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "selector": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Selector",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 200,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "selector",
+        "text"
+      ],
+      "title": "TypeTextConfig",
+      "type": "object"
+    },
+    "TypeTextNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "type",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/TypeTextConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "config"
+      ],
+      "title": "TypeTextNode",
+      "type": "object"
+    },
+    "VarRef": {
+      "additionalProperties": false,
+      "description": "A reference to a flow variable: {\"var\": \"name\"}. Never a template string.",
+      "properties": {
+        "var": {
+          "pattern": "^[a-z][a-z0-9_]{0,39}$",
+          "title": "Var",
+          "type": "string"
+        }
+      },
+      "required": [
+        "var"
+      ],
+      "title": "VarRef",
+      "type": "object"
+    },
+    "Variable": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9_]{0,39}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "text",
+            "number",
+            "price",
+            "boolean",
+            "url",
+            "url_list",
+            "text_list"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "value"
+      ],
+      "title": "Variable",
+      "type": "object"
+    },
+    "WaitConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "seconds": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "ge": 1,
+              "le": 10
+            },
+            {
+              "$ref": "#/$defs/VarRef"
+            }
+          ],
+          "default": 2,
+          "title": "Seconds"
+        }
+      },
+      "title": "WaitConfig",
+      "type": "object"
+    },
+    "WaitForElementConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "selector": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Selector",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 5,
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "selector"
+      ],
+      "title": "WaitForElementConfig",
+      "type": "object"
+    },
+    "WaitForElementNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "wait_for_element",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/WaitForElementConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "config"
+      ],
+      "title": "WaitForElementNode",
+      "type": "object"
+    },
+    "WaitNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]{1,32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentid"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "type": {
+          "const": "wait",
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/WaitConfig"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "title": "WaitNode",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Version",
+      "type": "integer"
+    },
+    "variables": {
+      "items": {
+        "$ref": "#/$defs/Variable"
+      },
+      "maxItems": 20,
+      "title": "Variables",
+      "type": "array"
+    },
+    "nodes": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "alert": "#/$defs/AlertNode",
+            "check_page": "#/$defs/CheckPageNode",
+            "click": "#/$defs/ClickNode",
+            "condition": "#/$defs/ConditionNode",
+            "extract_fields": "#/$defs/ExtractFieldsNode",
+            "extract_list": "#/$defs/ExtractListNode",
+            "fetch_item_page": "#/$defs/FetchItemPageNode",
+            "fetch_page": "#/$defs/FetchPageNode",
+            "for_each": "#/$defs/ForEachNode",
+            "paginate": "#/$defs/PaginateNode",
+            "results": "#/$defs/ResultsNode",
+            "save_records": "#/$defs/SaveRecordsNode",
+            "scroll": "#/$defs/ScrollNode",
+            "trigger": "#/$defs/TriggerNode",
+            "type": "#/$defs/TypeTextNode",
+            "wait": "#/$defs/WaitNode",
+            "wait_for_element": "#/$defs/WaitForElementNode"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/TriggerNode"
+          },
+          {
+            "$ref": "#/$defs/FetchPageNode"
+          },
+          {
+            "$ref": "#/$defs/PaginateNode"
+          },
+          {
+            "$ref": "#/$defs/ExtractListNode"
+          },
+          {
+            "$ref": "#/$defs/ForEachNode"
+          },
+          {
+            "$ref": "#/$defs/FetchItemPageNode"
+          },
+          {
+            "$ref": "#/$defs/ExtractFieldsNode"
+          },
+          {
+            "$ref": "#/$defs/ConditionNode"
+          },
+          {
+            "$ref": "#/$defs/WaitNode"
+          },
+          {
+            "$ref": "#/$defs/CheckPageNode"
+          },
+          {
+            "$ref": "#/$defs/SaveRecordsNode"
+          },
+          {
+            "$ref": "#/$defs/AlertNode"
+          },
+          {
+            "$ref": "#/$defs/ResultsNode"
+          },
+          {
+            "$ref": "#/$defs/ClickNode"
+          },
+          {
+            "$ref": "#/$defs/ScrollNode"
+          },
+          {
+            "$ref": "#/$defs/TypeTextNode"
+          },
+          {
+            "$ref": "#/$defs/WaitForElementNode"
+          }
+        ]
+      },
+      "maxItems": 30,
+      "title": "Nodes",
+      "type": "array"
+    },
+    "edges": {
+      "items": {
+        "$ref": "#/$defs/FlowEdge"
+      },
+      "maxItems": 100,
+      "title": "Edges",
+      "type": "array"
+    }
+  },
+  "required": [
+    "nodes"
+  ],
+  "title": "Flow",
+  "type": "object"
+}
