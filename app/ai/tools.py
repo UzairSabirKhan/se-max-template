@@ -391,19 +391,38 @@ async def add_steps(
 
     taken = _ids(deps.draft)
     ids: dict[str, str] = {}
+    # A flow has ONE trigger and ONE check_page. If the model asks for one that already exists, reuse it
+    # (applying its settings) instead of refusing the whole batch: a harmless mistake, not a failure.
+    single = {n["type"]: n["id"] for n in deps.draft.get("nodes", []) if n["type"] in _REQUIRED_TYPES}
+    reused: list[Any] = []
+    new_steps: list[Any] = []
     for spec in steps:
+        if spec.type in _REQUIRED_TYPES and spec.type in single:
+            ids[spec.ref] = single[spec.type]
+            reused.append(spec)
+            continue
         _check_new_step(deps.draft, spec.type)
+        if spec.type in _REQUIRED_TYPES:
+            single[spec.type] = ""  # a second one in the same batch is still an error
         ids[spec.ref] = _new_id("n_", taken)
         taken.add(ids[spec.ref])
-    types = {**{nid: n["type"] for nid, n in existing.items()}, **{ids[spec.ref]: spec.type for spec in steps}}
+        new_steps.append(spec)
+    for spec in new_steps:
+        if spec.type in _REQUIRED_TYPES:
+            single[spec.type] = ids[spec.ref]
+    types = {**{nid: n["type"] for nid, n in existing.items()}, **{ids[s.ref]: s.type for s in new_steps}}
 
     def resolve(name: str) -> str:
         nid = ids.get(name, name)
+        if nid not in types and single.get(name):  # "trigger" / "check_page" used as an id
+            nid = single[name]
         if nid not in types:
-            raise ModelRetry(f"{name!r} is neither a new step's ref nor an existing step id.")
+            raise ModelRetry(f"{name!r} is neither a new step's ref nor an existing step id. "
+                             "Existing ids are in the draft (get_flow).")
         return nid
 
     ops: list[dict[str, Any]] = []
+    skipped: list[str] = []
     for link in unlink:
         source, target = resolve(link.source), resolve(link.target)
         matches = [
@@ -414,21 +433,32 @@ async def add_steps(
             and (link.source_handle is None or e.get("sourceHandle") == link.source_handle)
         ]
         if not matches:
-            raise ModelRetry(f"There is no link from {link.source} to {link.target} to remove.")
+            skipped.append(f"no link {link.source} -> {link.target} to remove")
+            continue  # already in the state the model wanted
         ops += [{"op": "remove_edge", "id": e["id"]} for e in matches]
-    for spec in steps:
+    for spec in reused:  # update the existing trigger's settings rather than adding a second one
+        if spec.type == "trigger" and spec.config:
+            node = _node(deps.draft, ids[spec.ref])
+            config = _agent_config("trigger", {**(node.get("config") or {}), **spec.config})
+            ops.append({"op": "update_node", "id": ids[spec.ref], "config": config})
+    for spec in new_steps:
         parent = resolve(spec.parent) if spec.parent else None
         if parent is not None and types[parent] != "for_each":
             raise ModelRetry(f"parent {spec.parent!r} of {spec.ref!r} is not a Loop (for_each) step.")
         node = _new_node(spec.type, spec.config, parent, taken)
         node["id"] = ids[spec.ref]
         ops.append({"op": "add_node", "node": node})
+    removed = {op["id"] for op in ops if op["op"] == "remove_edge"}
+    have = {(e["source"], e["target"], e.get("sourceHandle"), e.get("targetHandle"))
+            for e in deps.draft.get("edges", []) if e["id"] not in removed}
     for link in links:
-        edge: dict[str, Any] = {
-            "id": _new_id("e_", taken),
-            "source": resolve(link.source),
-            "target": resolve(link.target),
-        }
+        source, target = resolve(link.source), resolve(link.target)
+        key = (source, target, link.source_handle or None, link.target_handle or None)
+        if key in have:
+            skipped.append(f"link {link.source} -> {link.target} already exists")
+            continue
+        have.add(key)
+        edge: dict[str, Any] = {"id": _new_id("e_", taken), "source": source, "target": target}
         taken.add(edge["id"])
         if link.source_handle:
             edge["sourceHandle"] = link.source_handle
@@ -436,7 +466,13 @@ async def add_steps(
             edge["targetHandle"] = link.target_handle
         ops.append({"op": "add_edge", "edge": edge})
     _propose(deps, ops)
-    return {"added": len(steps), "linked": len(links), "unlinked": len(unlink), "ids": ids}
+    result: dict[str, Any] = {"added": len(new_steps), "linked": sum(op["op"] == "add_edge" for op in ops),
+                              "unlinked": sum(op["op"] == "remove_edge" for op in ops), "ids": ids}
+    if reused:
+        result["reused"] = {s.ref: ids[s.ref] for s in reused}
+    if skipped:
+        result["skipped"] = skipped
+    return result
 
 
 def _check_new_step(draft: dict[str, Any], type: str) -> None:

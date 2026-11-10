@@ -542,3 +542,55 @@ def test_agent_cannot_set_expected_count():
     assert "expected_count" not in _agent_config("extract_list", cfg)
     assert _agent_config("condition", {"rules": []}) == {"rules": []}
 
+
+
+# --- Live failure, 15:20: the draft already had 3 unlinked steps; the model re-added the trigger and
+# unlinked a link that didn't exist, so every add_steps was refused and the run gave up. Harmless
+# mistakes are now absorbed instead of failing the whole batch.
+PARTIAL = {
+    "version": 2, "variables": [],
+    "nodes": [
+        {"id": "n_ixr09t", "type": "trigger", "position": {"x": 0, "y": 0}, "config": {"mode": "manual"}},
+        {"id": "n_ujmnle", "type": "fetch_page", "position": {"x": 0, "y": 0},
+         "config": {"url": "https://books.toscrape.com/"}},
+        {"id": "n_c9swmg", "type": "extract_list", "position": {"x": 0, "y": 0},
+         "config": {"base_selector": "article.product_pod", "identity_key": "url", "fields": [
+             {"name": "title", "selector": "h3 a", "attr": "title", "type": "text", "required": True},
+             {"name": "price", "selector": ".price_color", "type": "price", "required": True},
+             {"name": "url", "selector": "h3 a", "attr": "href", "type": "url", "required": True}]}},
+    ],
+    "edges": [],
+}
+
+
+async def test_add_steps_reuses_existing_steps_and_skips_harmless_mistakes():
+    from app.ai.tools import LinkSpec, StepSpec
+
+    ctx, deps, _ = make_ctx(PARTIAL)
+    result = await tools.add_steps(
+        ctx,
+        steps=[
+            StepSpec(ref="trig", type="trigger", config={"mode": "interval", "every_minutes": 60}),  # exists
+            StepSpec(ref="check", type="check_page"),
+            StepSpec(ref="save", type="save_records", config={"dataset": "books", "track_fields": ["price"]}),
+            StepSpec(ref="cond", type="condition", config={"match": "all",
+                                                           "rules": [{"field": "price", "op": "changed"}]}),
+            StepSpec(ref="alert", type="alert", config={"title": "Price changed"}),
+        ],
+        links=[
+            LinkSpec(source="trig", target="n_ujmnle"),
+            LinkSpec(source="n_ujmnle", target="n_c9swmg"),
+            LinkSpec(source="n_c9swmg", target="check_page"),   # a type name used as an id
+            LinkSpec(source="check", target="save"),
+            LinkSpec(source="save", target="cond"),
+            LinkSpec(source="cond", target="alert", source_handle="true"),
+            LinkSpec(source="n_ujmnle", target="n_c9swmg"),     # duplicate link
+        ],
+        unlink=[LinkSpec(source="n_ixr09t", target="n_ujmnle")],  # doesn't exist
+    )
+    assert result["reused"] == {"trig": "n_ixr09t"} and result["added"] == 4
+    assert len(result["skipped"]) == 2
+    trigger = next(n for n in deps.draft["nodes"] if n["type"] == "trigger")
+    assert trigger["config"]["mode"] == "interval"                                  # its settings applied
+    assert sum(n["type"] == "trigger" for n in deps.draft["nodes"]) == 1
+    assert engine.validate_flow(deps.draft) == []  # a complete, runnable flow

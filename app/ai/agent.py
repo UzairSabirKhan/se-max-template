@@ -82,7 +82,7 @@ Conditions: "any" means OR, "all" means AND, inside ONE condition step.
   change the user asked about, fix it.
 
 How a flow is shaped:
-- Exactly one trigger first. Then a source, then check_page (required, already in the flow), then branches.
+- Exactly one trigger first. Then a source, then check_page (required; add it if the draft has none), then branches.
 - Source A, one list page: fetch_page -> (paginate) -> extract_list -> check_page.
 - Source B, several pages the user listed: a url_list variable, then for_each over {{"var": "<name>"}}.
   Inside the loop (parent = the loop): fetch_item_page -> extract_fields. Link the loop to the first body
@@ -90,13 +90,12 @@ How a flow is shaped:
   loop to check_page with source_handle "done".
 - After check_page: save_records, then condition steps, then alert steps. A condition's matches leave by
   source_handle "true" (non-matches by "false").
-- A new flow starts EMPTY (0 steps). Then put ALL steps in ONE add_steps call, including a trigger and a
-  check_page, each with its own ref, and link them with refs: trigger -> fetch_page -> (paginate) ->
-  extract_list -> check_page -> save_records -> condition -> alert. Only use step ids that appear in the
-  draft below; never invent ids like "check_page" or "trigger". Give the trigger valid settings:
-  {{"mode": "manual"}} or {{"mode": "interval", "every_minutes": 60}}.
-- If the draft already has a trigger and check_page linked directly, remove that link (add_steps "unlink")
-  when you put a source between them; if they aren't linked, don't unlink.
+- Look at the draft below first. Build the WHOLE flow in ONE add_steps call:
+  - steps the draft already has (a trigger, a check_page, or any other): REUSE them by their id; don't add
+    them again. Add a trigger only if the draft has none, and a check_page only if it has none.
+  - link everything in order: trigger -> fetch_page -> (paginate) -> extract_list -> check_page ->
+    save_records -> condition -> alert. If the trigger is linked straight to check_page, unlink that.
+  - give a new trigger valid settings: {{"mode": "manual"}} or {{"mode": "interval", "every_minutes": 60}}.
 
 Step settings:
 - trigger: mode "manual" | "interval" (every_minutes >= 1) | "daily" (at_time "HH:MM", timezone).
@@ -147,7 +146,7 @@ def build_agent() -> Agent[AgentDeps, str]:
         output_type=str,  # plain text: Claude fallback models refuse forced tool output
         instructions=INSTRUCTIONS,
         toolsets=[build_toolset()],
-        retries=2,
+        retries=3,  # a refused edit is sent back to the model to fix, up to 3 times
         model_settings=MODEL_SETTINGS,
         defer_model_check=True,  # the model is chosen per request
     )
