@@ -32,7 +32,7 @@ Status: `Planned`, then `In progress`, then `Done` (with a test passing in CI), 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
 | FR-01 | Create, list, open, rename and delete flows. The flow list shows status (draft / published / paused) and unread alert count | Must | Done |
-| FR-02 | Canvas editor (React Flow): drag nodes from a palette, connect them, and edit each node's settings in a side panel | Must | Planned |
+| FR-02 | Canvas editor (React Flow): drag nodes from a palette, connect them, and edit each node's settings in a side panel | Must | Done |
 | FR-03 | Every save, agent edit and publish validates the flow against the schema: fixed node types, unknown keys rejected, selectors of 200 characters or fewer that parse, fixed field types and condition operators, no code and no regex. An invalid flow gets a clear message and is never saved | Must | Done |
 | FR-04 | Graph rules are enforced: no cycles (DAG); at most 30 nodes; exactly one trigger; a source → `check_page` spine; condition edges use `true`/`false`; loop body rules (see FR-22) | Must | Done |
 | FR-05 | Saving a draft checks `draft_version`. A stale save returns 409 with a "reload" message instead of overwriting | Should | Done |
@@ -41,23 +41,23 @@ Status: `Planned`, then `In progress`, then `Done` (with a test passing in CI), 
 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
-| FR-06 | A sidebar agent sees the open flow and the user's selection and edits the **draft** through typed tools. Its edits appear on the canvas as pending changes the user accepts or rejects | Must | Planned |
-| FR-07 | Agent tools: `get_flow`, `list_node_types`, `fetch_page`, `test_selector`, `test_selector_on_many`, `add_node`, `add_steps`, `update_node`, `remove_node`, `connect`, `disconnect`, `set_variable`, `remove_variable`, `dry_run`, `list_datasets`, `query_records`. At most 8 tool calls per message; `add_steps` adds several steps and their links in one call so a whole flow fits | Must | Planned |
-| FR-08 | The agent has no tool to publish, run, pause or delete, and none to execute code. Only the user can publish | Must | Planned |
-| FR-09 | The agent uses `AI_MODEL` (e.g. Gemini) with automatic fallback, in order, to each model in `AI_FALLBACK_MODEL` (e.g. Groq, then Claude) when one errors, times out or is rate-limited (PydanticAI `FallbackModel`). Providers: Gemini, Groq, Claude; a model without its API key is skipped | Should | Planned |
-| FR-10 | If AI is unavailable, the sidebar shows "AI service is unavailable, please try again". Manual editing, dry runs and published flows keep working | Must | Planned |
-| FR-11 | A malformed, truncated or extra-key AI reply, or a tool call that fails validation, is rejected with a clear error and never applied to the draft | Must | Planned |
-| FR-12 | Page content sent to the agent is stripped of scripts, cut to about 30 KB and marked as untrusted. Text on the page cannot change the rules | Must | Planned |
+| FR-06 | A sidebar agent sees the open flow and the user's selection and edits the **draft** through typed tools. Its edits appear on the canvas as pending changes the user accepts or rejects | Must | Done (tested with scripted models; live model run is B18) |
+| FR-07 | Agent tools: `get_flow`, `list_node_types`, `fetch_page`, `test_selector`, `test_selector_on_many`, `add_node`, `add_steps`, `update_node`, `remove_node`, `connect`, `disconnect`, `set_variable`, `remove_variable`, `dry_run`, `list_datasets`, `query_records`. At most 8 tool calls per message; `add_steps` adds several steps and their links in one call so a whole flow fits | Must | Done |
+| FR-08 | The agent has no tool to publish, run, pause or delete, and none to execute code. Only the user can publish | Must | Done |
+| FR-09 | The agent uses `AI_MODEL` (e.g. Gemini) with automatic fallback, in order, to each model in `AI_FALLBACK_MODEL` (e.g. Groq, then Claude) when one errors, times out or is rate-limited (PydanticAI `FallbackModel`). Providers: Gemini, Groq, Claude; a model without its API key is skipped | Should | Done |
+| FR-10 | If AI is unavailable, the sidebar shows "AI service is unavailable, please try again". Manual editing, dry runs and published flows keep working | Must | Done |
+| FR-11 | A malformed, truncated or extra-key AI reply, or a tool call that fails validation, is rejected with a clear error and never applied to the draft | Must | Done |
+| FR-12 | Page content sent to the agent is stripped of scripts, cut to about 30 KB and marked as untrusted. Text on the page cannot change the rules | Must | Done (agent tools also refuse internal URLs; safe_fetch is the real guard) |
 
 ### Lifecycle, scheduling and runs
 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
-| FR-13 | **Dry run** executes the draft and shows rows, field coverage, the verdict and the change labels that would be assigned. It writes no records and sends no alerts | Must | Planned |
-| FR-14 | **Publish** validates, dry-runs, stores `expected_count` and `page_anchor`, copies the draft to the published copy and registers the schedule. **Pause** and **Unpublish** remove the schedule. Editing a published flow changes only the draft | Must | Planned |
-| FR-15 | The Trigger node holds the schedule: `manual`, `interval` (`every_minutes` ≥ 1) or `daily` (`at_time` + timezone). Schedules are rebuilt from published flows at startup | Must | Planned |
-| FR-16 | **Run now** runs the published copy. A flow never runs twice at once (per-flow lock) | Must | Planned |
-| FR-17 | Run history records time, trigger, verdict, reason, evidence, HTTP status, item counts, field coverage, duration, a per-node trace and `ai_calls` (always 0) | Must | Planned |
+| FR-13 | **Dry run** executes the draft and shows rows, field coverage, the verdict and the change labels that would be assigned. It writes no records and sends no alerts | Must | In progress (UI done; real dry run is A13/A20) |
+| FR-14 | **Publish** validates, dry-runs, stores `expected_count` and `page_anchor`, copies the draft to the published copy and registers the schedule. **Pause** and **Unpublish** remove the schedule. Editing a published flow changes only the draft | Must | In progress (UI and validation done; dry run on publish is A17) |
+| FR-15 | The Trigger node holds the schedule: `manual`, `interval` (`every_minutes` ≥ 1) or `daily` (`at_time` + timezone). Schedules are rebuilt from published flows at startup | Must | In progress (Trigger settings UI done; scheduler is A18) |
+| FR-16 | **Run now** runs the published copy. A flow never runs twice at once (per-flow lock) | Must | In progress (UI and live progress done; runner and lock are A13) |
+| FR-17 | Run history records time, trigger, verdict, reason, evidence, HTTP status, item counts, field coverage, duration, a per-node trace and `ai_calls` (always 0) | Must | In progress (Runs tab done; real run records are A13/A17) |
 
 ### Engine and nodes
 
@@ -67,12 +67,12 @@ Status: `Planned`, then `In progress`, then `Done` (with a test passing in CI), 
 | FR-19 | Fetches are limited to `ALLOWED_DOMAINS` (default: the app's own host, so only the mock shop during the event) | Should | Done |
 | FR-20 | Static HTML only. A page that is a JavaScript app shell gets the UNSUPPORTED verdict with "This page loads its data with JavaScript, which ScrapeOnce does not support." | Must | Planned |
 | FR-21 | `extract_list` (base selector + fields + identity key) and `extract_fields` (one page = one item), with tested normalisers for text, price, int, url, date and stock | Must | In progress (normalisers done; extraction is A12) |
-| FR-22 | `for_each` loops over items or a list variable: at most 25 items, one at a time, no nesting, body limited to `fetch_item_page`, `extract_fields`, `condition` and `wait`, `on_error` = skip or stop | Should | Planned |
+| FR-22 | `for_each` loops over items or a list variable: at most 25 items, one at a time, no nesting, body limited to `fetch_item_page`, `extract_fields`, `condition` and `wait`, `on_error` = skip or stop | Should | In progress (loop UI and validation done; running loops is A21) |
 | FR-23 | Typed flow variables (`text`, `number`, `price`, `boolean`, `url`, `url_list`, `text_list`) referenced as `{"var": name}` only in fixed places, type-checked on save | Should | Planned |
 | FR-24 | `condition` routes each item to `true` / `false` using fixed operators per field type (`lt`, `gt`, `contains`, `is_new`, `changed`, `drop_pct_gt`, `back_in_stock`, …) | Must | Planned |
 | FR-25 | `paginate` follows a "next" link, at most 5 pages | Should | Planned |
 | FR-26 | Waits: `wait` node (1–10 s); a rate limit of 2 s per domain; 2 retries with backoff on 429/5xx/timeout (`Retry-After` honoured up to 10 s); a 120 s run deadline | Must | In progress (fetch timeouts, retries, per-host throttle done; run deadline and wait node are A13) |
-| FR-27 | Browser nodes (click, scroll, type, wait for element) appear in the palette as disabled ("needs browser, coming soon") and are rejected at publish | Should | Planned |
+| FR-27 | Browser nodes (click, scroll, type, wait for element) appear in the palette as disabled ("needs browser, coming soon") and are rejected at publish | Should | Done |
 
 ### Change detection, records and alerts
 
@@ -81,11 +81,11 @@ Status: `Planned`, then `In progress`, then `Done` (with a test passing in CI), 
 | FR-28 | `check_page` gives one verdict per run, in order: **BLOCKED** (fetch error, 403/407/429/5xx, captcha or "access denied" text, non-HTML, body under 20% of the last good size, missing `page_anchor`), **UNSUPPORTED**, **BROKEN** (count outside `expected_count` or under 50% of the last good run; a required field filled on under 50% of items or down more than 30 points; over 50% of values fail to parse; duplicate identity keys). For lists under 5 items it uses absolute counts. If the verdict is BLOCKED, UNSUPPORTED, BROKEN or UNKNOWN, nothing after it runs and nothing is stored | Must | Planned |
 | FR-29 | `save_records` stores items in a named dataset keyed by identity key. It labels each item new / changed / same / removed (removed only if under 20% vanished), writes the current record plus one change row per changed field, and the first run is a silent baseline | Must | Planned |
 | FR-30 | A price that moved more than ±50% is labelled SUSPECT: the record is not updated and a system alert asks for confirmation | Should | Planned |
-| FR-31 | Alerts are per flow, from Alert nodes (condition matches) and system verdicts (site changed, blocked after 2 runs in a row, unsupported, suspect). They are de-duplicated, say why they fired (for example "Blue Kettle: Rs 1,250 → Rs 1,099 (−12%)") and appear in the flow's Alerts tab | Must | Planned |
-| FR-32 | The Data tab lists each dataset's records and each record's change history | Should | Planned |
-| FR-33 | CSV export of a dataset | Stretch | Planned |
+| FR-31 | Alerts are per flow, from Alert nodes (condition matches) and system verdicts (site changed, blocked after 2 runs in a row, unsupported, suspect). They are de-duplicated, say why they fired (for example "Blue Kettle: Rs 1,250 → Rs 1,099 (−12%)") and appear in the flow's Alerts tab | Must | In progress (Alerts tab done; raising alerts is A16) |
+| FR-32 | The Data tab lists each dataset's records and each record's change history | Should | In progress (Data tab done; real records are A15/A17) |
+| FR-33 | CSV export of a dataset | Stretch | In progress (CSV link in the UI; export endpoint is A26) |
 | FR-34 | Field names that look like personal data (email, phone, CNIC) are rejected, and values matching those patterns are flagged | Should | Planned |
-| FR-35 | The agent endpoint is rate-limited (10 requests per minute per IP) | Should | Planned |
+| FR-35 | The agent endpoint is rate-limited (10 requests per minute per IP) | Should | Done |
 
 ### Demo target
 

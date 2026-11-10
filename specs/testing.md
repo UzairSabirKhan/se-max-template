@@ -127,7 +127,7 @@ Filled from the final CI run. Commit: `Pending`.
 | EC-52 | AI unavailable (client raises / no key) | Sidebar error; published flows still run | `test_ai_unavailable::*` | Pending |
 | EC-53 | Scheduled and manual runs | `ai_calls == 0`; no AI module imported | `test_zero_ai::*` | Pending |
 | EC-54 | Same fixture run 20 times | Identical output | `test_determinism::*` | Pending |
-| EC-55 | Scraped text containing `<script>` | Shown escaped in the UI | Manual (red-team) | Pending |
+| EC-55 | Scraped text containing `<script>` | Shown escaped in the UI | Manual (red-team) | **Pass** (~13:15, B19): `<img onerror>`, `<script>`, `<b>` and a `javascript:` URL seeded into records, history, alerts and run reports; on the Data tab, history drawer, Alerts tab and Runs report the text showed literally, no element was created and nothing ran. No `dangerouslySetInnerHTML` or `innerHTML` in `web/src` |
 | EC-56 | Browser node in a flow | Publish refused: "needs browser" | `test_publish::test_browser_node` | Pending |
 
 ## Measured metrics

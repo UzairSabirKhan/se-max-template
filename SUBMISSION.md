@@ -4,8 +4,8 @@ Complete before 3:00 PM. Submit your final commit hash through the organizers' f
 
 ## Submission details
 
-- **Team name:**
-- **Repository URL:**
+- **Team name:** LazyLoaders
+- **Repository URL:** https://github.com/muhammadusamahoyrr/ScrapeOne
 - **Final commit hash:**
 - **Live URL / install link:**
 - **Submitted at (time):**

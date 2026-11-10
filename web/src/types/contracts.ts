@@ -1,46 +1,53 @@
-// Hand copy of specs/contracts.md (C1, C2, C3, C5).
-// When scripts/export_schema.py starts writing web/src/types/flow.ts, import the
-// Flow types from there instead and delete the C1 block below.
+// API shapes from specs/contracts.md (C1, C2, C3, C5).
+//
+// C1 names come from the generated web/src/types/flow.ts (scripts/export_schema.py; never edit it by
+// hand), so step types, variable types and link handles can't drift from the server's Pydantic models.
+// The generated types describe VALID flows (e.g. extract_list needs at least one field). The editor
+// holds DRAFTS, where a step's settings may still be unfilled (D-17), so FlowNode.config stays loose
+// here. The checks at the end of this block make sure every valid server flow fits the draft shape.
+import type {
+  Flow as ValidFlow,
+  FlowEdge as ValidEdge,
+  Nodes as ValidNodes,
+  Variable as ValidVariable,
+  VarRef as ValidVarRef,
+} from "./flow";
 
 // ---------- C1. Flow document ----------
-export type NodeType =
-  | "trigger"
-  | "fetch_page"
-  | "paginate"
-  | "extract_list"
-  | "for_each"
-  | "fetch_item_page"
-  | "extract_fields"
-  | "condition"
-  | "wait"
-  | "check_page"
-  | "save_records"
-  | "alert"
-  | "results"
-  | "click"
-  | "scroll"
-  | "type"
-  | "wait_for_element";
-
-export type VariableType = "text" | "number" | "price" | "boolean" | "url" | "url_list" | "text_list";
+export type NodeType = ValidNodes[number]["type"];
+export type VariableType = ValidVariable["type"];
 export type Variable = { name: string; type: VariableType; value: unknown };
-export type VarRef = { var: string };
+export type VarRef = ValidVarRef;
 
 export type FlowNode = {
   id: string;
   type: NodeType;
   parentId?: string;
   position: { x: number; y: number };
+  /** Draft settings: may be unfilled until the step is dry-run or published. */
   config: Record<string, any>;
 };
 
-export type SourceHandle = "true" | "false" | "item" | "done";
+export type SourceHandle = NonNullable<ValidEdge["sourceHandle"]>;
+export type TargetHandle = NonNullable<ValidEdge["targetHandle"]>;
+
+// Compile-time contract checks (they fail `npm run build` if the server's models change shape).
+type Assert<T extends true> = T;
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+export type _ContractChecks = [
+  Assert<Same<TargetHandle, "next">>,
+  Assert<Same<SourceHandle, "true" | "false" | "item" | "done">>,
+  Assert<"trigger" | "check_page" | "for_each" | "save_records" extends NodeType ? true : false>,
+  Assert<ValidNodes[number] extends { id: string; type: NodeType } ? true : false>,
+  Assert<NonNullable<ValidFlow["version"]> extends number ? true : false>,
+];
+
 export type FlowEdge = {
   id: string;
   source: string;
   target: string;
   sourceHandle?: SourceHandle;
-  targetHandle?: "next";
+  targetHandle?: TargetHandle;
 };
 
 export type Flow = {
@@ -130,7 +137,17 @@ export type Alert = {
   read: boolean;
 };
 
-export type Dataset = { id: string; name: string; identity_key: string; fields: string[]; record_count: number };
+/** `fields` is a name -> type map from the server; older payloads (and the mock) send a list of names. */
+export type Dataset = {
+  id: string;
+  name: string;
+  identity_key: string;
+  fields: string[] | Record<string, string>;
+  record_count: number;
+};
+
+export const fieldNames = (d: Pick<Dataset, "fields">): string[] =>
+  Array.isArray(d.fields) ? d.fields : Object.keys(d.fields ?? {});
 
 export type DataRecord = {
   id: string;
