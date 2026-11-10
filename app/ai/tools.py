@@ -16,10 +16,12 @@ Page text and stored values come back wrapped as untrusted content (FR-12).
 from __future__ import annotations
 
 import copy
+import ipaddress
 import re
 import secrets
 import string
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import ModelRetry, RunContext
@@ -136,12 +138,75 @@ def apply_op(flow: dict[str, Any], op: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def internal_reason(url: Any) -> str | None:
+    """Why `url` plainly points inside our network, or None. A cheap first check for agent input only.
+
+    The engine's safe_fetch stays the real guard (it resolves DNS and re-checks every redirect).
+    This catches what a hostile page or a confused model can type directly: localhost, private,
+    loopback and link-local addresses (the cloud metadata IP 169.254.169.254), and the same
+    addresses written as one decimal or hex number.
+    """
+    if not isinstance(url, str):
+        return None
+    try:
+        host = (urlsplit(url.strip()).hostname or "").rstrip(".").lower()
+    except ValueError:
+        return None
+    if not host:
+        return None
+    if host == "localhost" or host.endswith(".localhost") or host.endswith(".internal"):
+        return f"{host} is an internal address"
+    candidates: list[str | int] = [host]
+    if re.fullmatch(r"\d+", host):
+        candidates.append(int(host))
+    elif re.fullmatch(r"0x[0-9a-f]+", host):
+        candidates.append(int(host, 16))
+    for candidate in candidates:
+        try:
+            ip = ipaddress.ip_address(candidate)
+        except ValueError:
+            continue
+        if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+            ip = ip.ipv4_mapped
+        if not ip.is_global:
+            return f"{host} is a private or internal address"
+    return None
+
+
+def _urls_in(op: dict[str, Any]) -> list[Any]:
+    """URLs an op would put into the draft: fetch_page.url and url / url_list variable values."""
+    if op["op"] == "add_node" and op["node"].get("type") == "fetch_page":
+        return [op["node"].get("config", {}).get("url")]
+    if op["op"] == "update_node":
+        return [op["config"].get("url")]
+    if op["op"] == "set_variable" and op["variable"].get("type") in ("url", "url_list"):
+        value = op["variable"].get("value")
+        return value if isinstance(value, list) else [value]
+    return []
+
+
+async def _outline(url: str) -> str:
+    if reason := internal_reason(url):
+        raise engine.FetchRefused(reason)
+    return await engine.fetch_outline(url)
+
+
+async def _selector(url: str, selector: str, attr: str | None) -> dict[str, Any]:
+    if reason := internal_reason(url):
+        raise engine.FetchRefused(reason)
+    return await engine.test_selector(url, selector, attr)
+
+
 def _propose(deps: AgentDeps, ops: list[dict[str, Any]]) -> dict[str, Any]:
     """Validate ops against the working copy, all or nothing; keep them only if the draft stays valid.
 
     Returns the normalised flow. Raises ModelRetry (working copy untouched) if the engine refuses.
     The kept ops are not sent here: a failed run must not leave half a proposal in the browser.
     """
+    for op in ops:
+        for url in _urls_in(op):
+            if reason := internal_reason(url):
+                raise ModelRetry(f"That edit was not applied: {reason}. Only public web pages can be used.")
     candidate = deps.draft
     for op in ops:
         candidate = apply_op(candidate, op)
@@ -208,7 +273,7 @@ async def fetch_page(ctx: RunContext[AgentDeps], url: str) -> str:
     """
     ctx.deps.count_tool_call()
     try:
-        html = await engine.fetch_outline(url)
+        html = await _outline(url)
     except engine.FetchRefused as exc:
         return f"Refused: {exc.reason}. Tell the user this page can't be used and why."
     return _untrusted("page", html[:MAX_PAGE_CHARS])
@@ -221,7 +286,7 @@ async def test_selector(ctx: RunContext[AgentDeps], url: str, selector: str, att
     """
     ctx.deps.count_tool_call()
     try:
-        result = await engine.test_selector(url, selector, attr)
+        result = await _selector(url, selector, attr)
     except engine.FetchRefused as exc:
         return {"url": url, "refused": exc.reason}
     samples = [_clip(s) for s in result.get("samples", [])[:5]]
@@ -242,7 +307,7 @@ async def test_selector_on_many(
     pages = []
     for url in checked:  # one at a time: the per-site rate limit applies
         try:
-            result = await engine.test_selector(url, selector, attr)
+            result = await _selector(url, selector, attr)
         except engine.FetchRefused as exc:
             pages.append({"url": url, "refused": exc.reason})
             continue

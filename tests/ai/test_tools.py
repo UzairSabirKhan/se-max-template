@@ -281,13 +281,15 @@ async def test_page_content_comes_back_marked_as_untrusted(monkeypatch):
 
 async def test_a_refused_url_is_reported_not_raised(monkeypatch):
     async def refuse(url, *args):
-        raise engine.FetchRefused("internal address")
+        raise engine.FetchRefused("not an HTML page")
 
     monkeypatch.setattr(engine, "fetch_outline", refuse)
     monkeypatch.setattr(engine, "test_selector", refuse)
     ctx, _, _ = make_ctx()
-    assert "internal address" in await tools.fetch_page(ctx, "http://10.0.0.1")
-    assert (await tools.test_selector(ctx, "http://10.0.0.1", ".price"))["refused"] == "internal address"
+    # A public URL the engine's safe_fetch refuses (internal ones are refused earlier, see test_agent_contract).
+    assert "not an HTML page" in await tools.fetch_page(ctx, "https://files.example.com/report.pdf")
+    refused = await tools.test_selector(ctx, "https://files.example.com/report.pdf", ".price")
+    assert refused["refused"] == "not an HTML page"
 
 
 async def test_selector_samples_are_clipped_and_wrapped(monkeypatch):
