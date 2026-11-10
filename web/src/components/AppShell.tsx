@@ -1,5 +1,22 @@
 import clsx from "clsx";
-import { BookOpen, ChevronsUpDown, Database, LogOut, PanelLeft, Settings, Store, User, Workflow } from "lucide-react";
+import {
+  BookOpen,
+  Briefcase,
+  ChevronDown,
+  ChevronsUpDown,
+  Database,
+  ExternalLink,
+  GraduationCap,
+  Home,
+  LogOut,
+  PanelLeft,
+  Settings,
+  ShoppingBag,
+  SlidersHorizontal,
+  Store,
+  User,
+  Workflow,
+} from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { create } from "zustand";
@@ -121,6 +138,55 @@ function NavItem({ to, icon, label, external, collapsed }: { to: string; icon: R
   );
 }
 
+/** Our own demo sites (invented data, served by this app): the only sites scraped during the event. */
+const SHOPS = [
+  { to: "/shop", label: "Kitchen shop", icon: <ShoppingBag className="size-3.5" /> },
+  { to: "/demo/property", label: "Property listings", icon: <Home className="size-3.5" /> },
+  { to: "/demo/scholarships", label: "Scholarships", icon: <GraduationCap className="size-3.5" /> },
+  { to: "/demo/jobs", label: "Job board", icon: <Briefcase className="size-3.5" /> },
+];
+const CONTROLS = [
+  { to: "/shop/admin", label: "Shop controls" },
+  { to: "/demo/admin", label: "Demo site controls" },
+];
+
+function ShopsMenu({ collapsed }: { collapsed: boolean }) {
+  const [open, setOpen] = useState(false);
+  if (collapsed) return <NavItem to="/demo" external icon={<Store className="size-4" />} label="Mock shops" collapsed />;
+  const sub = "flex h-8 items-center gap-2 rounded-lg px-2.5 text-[13px] text-zinc-600 transition-colors hover:bg-zinc-200/60 hover:text-ink";
+  return (
+    <div>
+      <button
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] font-medium text-zinc-600 transition-colors hover:bg-zinc-200/60 hover:text-ink"
+      >
+        <Store className="size-4" />
+        <span className="flex-1 text-left">Mock shops</span>
+        <ChevronDown className={clsx("size-4 text-zinc-400 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="ml-4 mt-0.5 flex flex-col gap-0.5 border-l border-line pl-2">
+          {SHOPS.map((s) => (
+            <a key={s.to} href={s.to} target="_blank" rel="noreferrer" className={sub}>
+              {s.icon}
+              {s.label}
+              <ExternalLink className="ml-auto size-3 text-zinc-400" />
+            </a>
+          ))}
+          <div className="my-1 h-px bg-line" />
+          {CONTROLS.map((c) => (
+            <a key={c.to} href={c.to} target="_blank" rel="noreferrer" className={sub}>
+              <SlidersHorizontal className="size-3.5" />
+              {c.label}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { collapsed, toggle } = useShell();
   return (
@@ -135,7 +201,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className={clsx("flex flex-col gap-0.5", collapsed ? "px-2" : "px-3")}>
           <NavItem to="/" icon={<Workflow className="size-4" />} label="Flows" collapsed={collapsed} />
           <NavItem to="/data" icon={<Database className="size-4" />} label="Data" collapsed={collapsed} />
-          <NavItem to="/shop" external icon={<Store className="size-4" />} label="Mock shop" collapsed={collapsed} />
+          <ShopsMenu collapsed={collapsed} />
           <NavItem to="https://github.com/muhammadusamahoyrr/ScrapeOne#readme" external icon={<BookOpen className="size-4" />} label="Docs" collapsed={collapsed} />
         </nav>
         <div className="flex-1" />
