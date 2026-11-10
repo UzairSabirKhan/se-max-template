@@ -19,7 +19,7 @@ type Flow = {
 };
 type Variable = { name: string; type: "text"|"number"|"price"|"boolean"|"url"|"url_list"|"text_list"; value: unknown };
 type FlowNode = {
-  id: string;                            // "n_" + 6 chars, unique
+  id: string;                            // 1–32 chars of A-Z a-z 0-9 _ -, unique (UI/agent generate "n_" + 6 chars)
   type: NodeType;
   parentId?: string;                     // set when inside a for_each body
   position: { x: number; y: number };    // UI only; ignored by the engine
@@ -38,7 +38,7 @@ type VarRef = { var: string };
 
 ## C2. Validation errors
 
-Every save, publish or agent edit that fails returns **HTTP 422**:
+Every save, dry run, publish or agent edit that fails returns **HTTP 422**. Saves and agent edits use **draft mode** (safety and structure only, so a half-built flow can be saved); dry run and run add completeness checks; publish also refuses browser nodes.
 
 ```json
 {"error": "invalid_flow",
@@ -112,7 +112,8 @@ async def fetch_outline(url: str) -> str                     # safe_fetch, scrip
 async def test_selector(url: str, selector: str, attr: str | None = None) -> dict   # {"count": int, "samples": [str]*<=5}
 async def dry_run(flow: dict, flow_id: str | None, until_node: str | None = None) -> dict  # RunReport; never writes records
 def node_type_schemas() -> list[dict]                         # same as GET /api/node-types
-def validate_flow(flow: dict) -> list[dict]                   # [] if valid, else C2 issues
+def validate_flow(flow: dict, for_publish: bool = False, draft: bool = False) -> list[dict]  # [] if valid, else C2 issues
+def parse_flow(flow: dict, for_publish: bool = False, draft: bool = False) -> tuple[dict | None, list[dict]]  # (normalised flow, []) or (None, issues): ALWAYS apply/store the normalised flow
 async def list_datasets(flow_id: str) -> list[dict]
 async def sample_records(dataset_id: str, limit: int = 20) -> list[dict]
 ```

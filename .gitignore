@@ -45,6 +45,9 @@ target/
 *.sqlite
 *.sqlite3
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
 
 # Logs and coverage
 *.log

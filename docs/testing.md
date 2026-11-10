@@ -168,7 +168,22 @@ Every bug found by tests, red-teaming or review. AI-written bugs are marked "(AI
 
 | ID | Description | Found by / how | Severity | Status | Fix commit |
 |----|-------------|----------------|----------|--------|------------|
-| D-01 | | | | | |
+| D-01 | (AI) Draft-mode validator skipped variable checks in Condition rules: a price rule could use a URL-list variable | Test `test_draft_mode_still_refuses_unsafe_or_broken_structure[wrong_variable_type]` | Medium | Fixed | Pending (branch `feat/usama-m0-foundation`) |
+| D-02 | (AI) Path-traversal test could not fail even if a file leaked | Code review | Medium | Fixed | Pending |
+| D-03 | (AI) Condition value `true` accepted for `price lt` (bool coerced to number) | Senior review probe → case `rule_value_boolean` | Medium | Fixed | Pending |
+| D-04 | (AI) `"nan"` accepted as a numeric rule value | Senior review probe → case `rule_value_not_a_number` | Medium | Fixed | Pending |
+| D-05 | (AI) URL containing a space accepted on save | Senior review probe → case `url_with_space` | Low | Fixed | Pending |
+| D-06 | (AI) Duplicate edges not detected (items would be processed twice) | Senior review probe → case `duplicate_edge` | Medium | Fixed | Pending |
+| D-07 | (AI) Identity field could be optional → records with empty keys | Senior review probe → `test_identity_field_is_normalised_to_required` | High | Fixed (normalised to required) | Pending |
+| D-08 | (AI) Personal-data filter used substrings: blocked `iphone_price`, `automobile_price` | Senior review probe → `test_personal_data_names_match_whole_words` | Medium | Fixed (whole-word match) | Pending |
+| D-09 | (AI) API stored the raw draft instead of the validated, normalised one | Senior review → `test_saved_draft_is_the_normalised_version` | High | Fixed (`parse_flow`) | Pending |
+| D-10 | (AI) Save without `version` returned a misleading 409 | Senior review → `test_save_without_version_is_a_clear_422` | Low | Fixed | Pending |
+| D-11 | (AI) Condition fields checked against every extract node, not only upstream ones | Senior review → case `field_not_upstream` + `test_field_from_a_loop_is_usable_after_done` | Medium | Fixed | Pending |
+| D-12 | (AI) Unconnected nodes inside a loop body not detected | Senior review → case `loop_body_orphan` | Low | Fixed | Pending |
+| D-13 | (AI) 1 MB body limit only checked `Content-Length`; chunked uploads bypassed it. First fix was swallowed by FastAPI's body parser (400) | Senior review → `test_oversized_chunked_body_is_refused` + curl against real uvicorn | High | Fixed (ASGI middleware answers 413 itself) | Pending |
+| D-14 | (AI) Exported contract files could go stale with no check | Senior review → `test_exported_contract_files_are_up_to_date` | Medium | Fixed | Pending |
+| D-15 | (AI) Flow store was in memory: every restart, deploy or Render sleep deleted all flows | Review of A5 → `tests/api/test_persistence.py::test_flows_survive_a_restart` + kill/restart of real uvicorn | High | Fixed (A7/A8: SQLAlchemy; Neon Postgres in production, SQLite file locally) | Pending |
+| D-16 | (AI) Version check was check-then-write: two saves racing on one version could both succeed, one silently lost | Review of A5 → `test_two_saves_racing_on_one_version_cannot_both_win` | High | Fixed (single conditional `UPDATE ... WHERE draft_version = :expected`) | Pending |
 
 ## Known untested areas
 
