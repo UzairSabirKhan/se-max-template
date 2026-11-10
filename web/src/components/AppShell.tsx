@@ -62,7 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className={clsx("flex flex-col gap-0.5", collapsed ? "px-2" : "px-3")}>
           <NavItem to="/" icon={<Workflow className="size-4" />} label="Flows" collapsed={collapsed} />
           <NavItem to="/shop" external icon={<Store className="size-4" />} label="Mock shop" collapsed={collapsed} />
-          <NavItem to="https://github.com/hexakaleem/ScrapeOne#readme" external icon={<BookOpen className="size-4" />} label="Docs" collapsed={collapsed} />
+          <NavItem to="https://github.com/muhammadusamahoyrr/ScrapeOne#readme" external icon={<BookOpen className="size-4" />} label="Docs" collapsed={collapsed} />
         </nav>
         <div className="flex-1" />
         {!collapsed ? (
