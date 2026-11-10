@@ -531,3 +531,14 @@ async def test_add_steps_can_build_a_loop_body_by_ref():
     loop_id = out["ids"]["loop"]
     body = [n for n in deps.draft["nodes"] if n.get("parentId") == loop_id]
     assert {n["type"] for n in body} == {"fetch_item_page", "extract_fields"}
+
+
+def test_agent_cannot_set_expected_count():
+    """D-29: the assistant guessed 6-6 from one page while paginate read 12 items, so its own test run
+    was BROKEN. Publish sets the range from a real run; the tools drop the agent's guess."""
+    from app.ai.tools import _agent_config
+
+    cfg = {"base_selector": ".product", "identity_key": "url", "fields": [], "expected_count": {"min": 6, "max": 6}}
+    assert "expected_count" not in _agent_config("extract_list", cfg)
+    assert _agent_config("condition", {"rules": []}) == {"rules": []}
+

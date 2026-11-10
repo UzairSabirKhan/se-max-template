@@ -38,7 +38,7 @@ from pydantic_ai.settings import ModelSettings
 log = logging.getLogger(__name__)
 
 #: At most this many tool calls per user message (FR-07). Enforced by UsageLimits; also counted in AgentDeps.
-MAX_TOOL_CALLS = 8
+MAX_TOOL_CALLS = 12
 
 #: Per-request limits. SDK retries are kept low because FallbackModel moves on to the next model instead.
 MODEL_SETTINGS = ModelSettings(
@@ -129,7 +129,7 @@ def get_model(config: AIConfig | None = None) -> Model:
 
 
 def usage_limits() -> UsageLimits:
-    """Caps for one user message: 8 tool calls, and enough model requests to use them and then reply."""
+    """Caps for one user message: MAX_TOOL_CALLS tool calls, and enough model requests to use them and then reply."""
     return UsageLimits(tool_calls_limit=MAX_TOOL_CALLS, request_limit=MAX_TOOL_CALLS + 3)
 
 

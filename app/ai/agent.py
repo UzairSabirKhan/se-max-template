@@ -9,15 +9,19 @@ proposal behind (FR-11).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any
 
+import httpx
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.exceptions import (
     AgentRunError,
     FallbackExceptionGroup,
     ModelAPIError,
+    ModelHTTPError,
     UnexpectedModelBehavior,
     UsageLimitExceeded,
 )
@@ -66,16 +70,20 @@ How a flow is shaped:
   loop to check_page with source_handle "done".
 - After check_page: save_records, then condition steps, then alert steps. A condition's matches leave by
   source_handle "true" (non-matches by "false").
-- A new flow starts EMPTY. If the draft below has no trigger or no check_page, add them in your add_steps
-  call (exactly one of each). If both already exist and are linked to each other directly, remove that
-  link (add_steps "unlink") when you put a source between them; if they aren't linked, don't unlink.
+- A new flow starts EMPTY (0 steps). Then put ALL steps in ONE add_steps call, including a trigger and a
+  check_page, each with its own ref, and link them with refs: trigger -> fetch_page -> (paginate) ->
+  extract_list -> check_page -> save_records -> condition -> alert. Only use step ids that appear in the
+  draft below; never invent ids like "check_page" or "trigger". Give the trigger valid settings:
+  {{"mode": "manual"}} or {{"mode": "interval", "every_minutes": 60}}.
+- If the draft already has a trigger and check_page linked directly, remove that link (add_steps "unlink")
+  when you put a source between them; if they aren't linked, don't unlink.
 
 Step settings:
 - trigger: mode "manual" | "interval" (every_minutes >= 1) | "daily" (at_time "HH:MM", timezone).
 - fetch_page: url (http/https) or {{"var": "<url variable>"}}.
 - paginate: next_selector, max_pages 1-5.
 - extract_list: base_selector (the box around one item), fields, identity_key (a field name, usually the
-  URL), optional page_anchor and expected_count {{"min": n, "max": n}}.
+  URL), optional page_anchor. Never set expected_count: publish sets it from a real test run.
 - field: name (lowercase_with_underscores), selector, optional attr (e.g. "href"),
   type text | price | int | url | date | stock, required true/false. Mark the identity and price fields required.
 - for_each: source "items" or {{"var": "<url_list variable>"}}, max_items 1-25, on_error "skip" | "stop".
@@ -229,6 +237,67 @@ def error_code_for(exc: BaseException) -> str:
     return "tool_failed"
 
 
+#: Waits before retrying when the AI provider is busy or briefly down (429, 5xx, timeouts, network).
+RETRY_DELAYS_S = (3.0, 8.0)
+MAX_RETRY_AFTER_S = 15.0
+#: A reply we couldn't use (bad tool arguments after PydanticAI's own retries) is retried this many times.
+UNUSABLE_REPLY_RETRIES = 1
+
+
+def _transient(exc: BaseException) -> bool:
+    """Worth waiting and trying again: the provider is busy or briefly unreachable. A wrong key or a bad
+    request is NOT transient: retrying can't fix it."""
+    if isinstance(exc, FallbackExceptionGroup):
+        return any(_transient(e) for e in exc.exceptions)
+    if isinstance(exc, ModelHTTPError):
+        return exc.status_code in (408, 409, 425, 429) or exc.status_code >= 500
+    if isinstance(exc, ModelAPIError | TimeoutError | ConnectionError | httpx.TransportError):
+        return True
+    return False
+
+
+def _retry_after(exc: BaseException, attempt: int) -> float:
+    errors = exc.exceptions if isinstance(exc, FallbackExceptionGroup) else [exc]
+    hinted = [e.retry_after for e in errors if isinstance(e, ModelHTTPError) and e.retry_after]
+    if hinted:
+        return min(max(hinted), MAX_RETRY_AFTER_S)
+    return RETRY_DELAYS_S[min(attempt, len(RETRY_DELAYS_S) - 1)]
+
+
+async def _one_run(agent: Agent[AgentDeps, str], model: Model, message: str, history: list[dict[str, str]],
+                   deps: AgentDeps, emit: EmitFn) -> None:
+    pending_args: dict[str, Any] = {}
+    async with agent.iter(
+        message,
+        deps=deps,
+        model=model,
+        message_history=history_messages(history),
+        usage_limits=usage_limits(),
+    ) as run:
+        async for node in run:
+            if not Agent.is_call_tools_node(node):
+                continue
+            text = "".join(p.content for p in node.model_response.parts if isinstance(p, TextPart)).strip()
+            if text:
+                await emit("text", {"delta": text + "\n\n"})
+            async with node.stream(run.ctx) as events:
+                async for event in events:
+                    if isinstance(event, FunctionToolCallEvent):
+                        pending_args[event.part.tool_call_id] = event.part.args
+                    elif isinstance(event, FunctionToolResultEvent):
+                        part = event.part
+                        ok = getattr(part, "outcome", "success") == "success"
+                        await emit(
+                            "tool_call",
+                            {
+                                "name": part.tool_name,
+                                "args": _chip_args(pending_args.pop(part.tool_call_id, {})),
+                                "ok": ok,
+                                "summary": tool_summary(part.tool_name, part.content, ok),
+                            },
+                        )
+
+
 async def run_agent(
     *,
     flow_id: str,
@@ -239,49 +308,59 @@ async def run_agent(
     emit: EmitFn,
     model: Model | None,
     agent: Agent[AgentDeps, str] = AGENT,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> None:
-    """Run one user message and emit C5 events through `emit`. Never raises."""
+    """Run one user message and emit C5 events through `emit`. Never raises.
+
+    It does not give up on the first problem:
+    - AI provider busy or briefly down (429, 5xx, timeout, network): waits and tries again (3 s, then 8 s,
+      or the provider's Retry-After up to 15 s), telling the user it is retrying. The fallback models are
+      tried first on every attempt (FallbackModel).
+    - A reply we couldn't use: tried once more.
+    - Step limit reached: keeps every edit it already made (each one was validated) and proposes them,
+      instead of throwing the work away; the user can say "continue".
+    Only problems retrying can't fix (no model configured, a wrong key) end the message straight away.
+    Every attempt starts from the user's draft, so a failed attempt never leaves half an edit behind.
+    """
     if model is None:
         await emit("error", {"code": "ai_unavailable", "message": ERROR_MESSAGES["ai_unavailable"]})
         return
 
-    deps = AgentDeps.for_message(flow_id, draft, selected_node_ids, emit)
-    pending_args: dict[str, Any] = {}
-    try:
-        async with agent.iter(
-            message,
-            deps=deps,
-            model=model,
-            message_history=history_messages(history),
-            usage_limits=usage_limits(),
-        ) as run:
-            async for node in run:
-                if not Agent.is_call_tools_node(node):
-                    continue
-                text = "".join(p.content for p in node.model_response.parts if isinstance(p, TextPart)).strip()
-                if text:
-                    await emit("text", {"delta": text + "\n\n"})
-                async with node.stream(run.ctx) as events:
-                    async for event in events:
-                        if isinstance(event, FunctionToolCallEvent):
-                            pending_args[event.part.tool_call_id] = event.part.args
-                        elif isinstance(event, FunctionToolResultEvent):
-                            part = event.part
-                            ok = getattr(part, "outcome", "success") == "success"
-                            await emit(
-                                "tool_call",
-                                {
-                                    "name": part.tool_name,
-                                    "args": _chip_args(pending_args.pop(part.tool_call_id, {})),
-                                    "ok": ok,
-                                    "summary": tool_summary(part.tool_name, part.content, ok),
-                                },
-                            )
-    except Exception as exc:  # every failure becomes a C5 error; the draft and proposal are dropped
-        code = error_code_for(exc)
-        log.warning("Agent run failed for flow %s: %s (%s)", flow_id, code, exc.__class__.__name__)
-        await emit("error", {"code": code, "message": ERROR_MESSAGES[code]})
-        return
+    transient_tries = 0
+    unusable_tries = 0
+    while True:
+        deps = AgentDeps.for_message(flow_id, draft, selected_node_ids, emit)
+        try:
+            await _one_run(agent, model, message, history, deps, emit)
+        except UsageLimitExceeded:
+            if deps.ops:  # keep the validated work instead of discarding it
+                await emit("text", {"delta": "I reached my step limit for one message. Here is what I built so "
+                                             "far: review it, then say \"continue\" and I'll finish.\n\n"})
+                await emit("flow_ops", {"ops": deps.ops})
+                await emit("done", {"tool_calls": deps.tool_calls})
+                return
+            await emit("error", {"code": "tool_failed", "message": ERROR_MESSAGES["tool_failed"]})
+            return
+        except Exception as exc:
+            if _transient(exc) and transient_tries < len(RETRY_DELAYS_S):
+                delay = _retry_after(exc, transient_tries)
+                transient_tries += 1
+                log.warning("Agent: AI provider busy for flow %s (%s); retry %d in %.0f s", flow_id,
+                            exc.__class__.__name__, transient_tries, delay)
+                await emit("text", {"delta": f"The AI service is busy. Retrying in {delay:.0f} s"
+                                             f" (attempt {transient_tries + 1} of {len(RETRY_DELAYS_S) + 1})…\n\n"})
+                await sleep(delay)
+                continue
+            code = error_code_for(exc)
+            if code == "invalid_ai_reply" and unusable_tries < UNUSABLE_REPLY_RETRIES:
+                unusable_tries += 1
+                log.warning("Agent: unusable reply for flow %s; trying once more", flow_id)
+                await emit("text", {"delta": "That answer wasn't usable. Trying once more…\n\n"})
+                continue
+            log.warning("Agent run failed for flow %s: %s (%s)", flow_id, code, exc.__class__.__name__)
+            await emit("error", {"code": code, "message": ERROR_MESSAGES[code]})
+            return
+        break
 
     if deps.ops:
         await emit("flow_ops", {"ops": deps.ops})

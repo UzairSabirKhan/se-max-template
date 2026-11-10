@@ -451,12 +451,20 @@ def _is_loop(draft: dict[str, Any], node_id: str) -> bool:
     return node is not None and node["type"] == "for_each"
 
 
+def _agent_config(type: str, config: dict[str, Any]) -> dict[str, Any]:
+    """Settings the assistant may not choose. expected_count is set at publish from a REAL test run of every
+    page; a guess from one page's selector test (6 items when paginate reads 2 pages = 12) breaks the flow."""
+    if type == "extract_list" and isinstance(config, dict):
+        return {k: v for k, v in config.items() if k != "expected_count"}
+    return config
+
+
 def _new_node(type: str, config: dict[str, Any], parent_id: str | None, taken: set[str]) -> dict[str, Any]:
     node: dict[str, Any] = {
         "id": _new_id("n_", taken),
         "type": type,
         "position": {"x": 0, "y": 0},  # the editor lays the graph out
-        "config": config,
+        "config": _agent_config(type, config),
     }
     if parent_id:
         node["parentId"] = parent_id
@@ -470,7 +478,7 @@ async def update_node(ctx: RunContext[AgentDeps], id: str, patch: dict[str, Any]
     node = _node(deps.draft, id)
     if node is None:
         raise ModelRetry(f"There is no step {id!r}. Call get_flow to see the step ids.")
-    config = {**node.get("config", {}), **patch}
+    config = _agent_config(node["type"], {**node.get("config", {}), **patch})
     config = {k: v for k, v in config.items() if v is not None}
     _propose(deps, [{"op": "update_node", "id": id, "config": config}])
     return f"Updated {node['type']} step {id}."
