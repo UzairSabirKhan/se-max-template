@@ -58,6 +58,7 @@ EXPECTED_TOOLS = {
     "test_selector",
     "test_selector_on_many",
     "add_node",
+    "add_steps",
     "update_node",
     "remove_node",
     "connect",
@@ -106,15 +107,15 @@ async def test_list_node_types_hides_browser_steps():
 # ---------------------------------------------------------------------------
 # Adding steps: every edit is validated before it is kept (FR-11)
 # ---------------------------------------------------------------------------
-async def test_add_node_keeps_the_normalised_step_and_emits_one_flow_op():
+async def test_add_node_keeps_the_normalised_step_as_a_pending_op():
     ctx, deps, rec = make_ctx()
     msg = await tools.add_node(ctx, "fetch_page", {"url": "  https://shop.example.com/list  "})
     new_id = msg.split()[-1].rstrip(".")
     assert new_id.startswith("n_") and len(new_id) == 8
     node = next(n for n in deps.draft["nodes"] if n["id"] == new_id)
     assert node["config"]["url"] == "https://shop.example.com/list"  # trimmed by the engine
-    assert rec.events == [("flow_ops", {"ops": [{"op": "add_node", "node": node}]})]
     assert deps.ops == [{"op": "add_node", "node": node}]
+    assert rec.events == []  # the agent sends all kept ops once, at the end of a clean run
 
 
 async def test_a_half_filled_step_is_allowed_in_the_draft():
@@ -199,7 +200,7 @@ async def test_removing_a_loop_removes_its_body_and_links():
     left = {n["id"] for n in deps.draft["nodes"]}
     assert loop_id not in left and not (body & left)
     assert all(loop_id not in (e["source"], e["target"]) for e in deps.draft["edges"])
-    ops = rec.events[-1][1]["ops"]
+    ops = deps.ops
     assert ops[-1] == {"op": "remove_node", "id": loop_id}
     assert {o["op"] for o in ops} == {"remove_edge", "remove_node"}
 
@@ -244,7 +245,7 @@ async def test_url_list_variable_is_normalised_before_it_is_proposed():
     var = next(v for v in deps.draft["variables"] if v["name"] == "watch_urls")
     assert var["value"] == ["https://shop.example.com/p/a", "https://shop.example.com/p/b"]
     assert "(2 items)" in msg
-    assert rec.events[-1] == ("flow_ops", {"ops": [{"op": "set_variable", "variable": var}]})
+    assert deps.ops == [{"op": "set_variable", "variable": var}]
 
 
 async def test_bad_variables_are_refused():
@@ -426,3 +427,105 @@ async def test_model_gets_the_validation_issue_and_its_fix_is_what_is_kept():
     assert seen_retry and "http" in seen_retry[0]
     assert [op["node"]["config"]["url"] for op in deps.ops] == ["https://shop.example.com"]
     assert deps.tool_calls == 2
+
+
+# ---------------------------------------------------------------------------
+# add_steps: a whole flow in one call, all or nothing
+# ---------------------------------------------------------------------------
+LIST_FLOW_STEPS = [
+    tools.StepSpec(ref="fetch", type="fetch_page", config={"url": "https://shop.example.com/list"}),
+    tools.StepSpec(ref="pages", type="paginate", config={"next_selector": "a.next", "max_pages": 3}),
+    tools.StepSpec(
+        ref="list",
+        type="extract_list",
+        config={
+            "base_selector": "div.product",
+            "identity_key": "url",
+            "fields": [
+                {"name": "title", "selector": "h2", "type": "text", "required": True},
+                {"name": "price", "selector": ".price", "type": "price", "required": True},
+                {"name": "url", "selector": "a", "attr": "href", "type": "url", "required": True},
+            ],
+        },
+    ),
+    tools.StepSpec(ref="save", type="save_records", config={"dataset": "shop_prices", "track_fields": ["price"]}),
+    tools.StepSpec(
+        ref="changed", type="condition", config={"match": "any", "rules": [{"field": "price", "op": "changed"}]}
+    ),
+    tools.StepSpec(ref="alert", type="alert", config={"title": "Price changed", "level": "warning"}),
+]
+LIST_FLOW_LINKS = [
+    tools.LinkSpec(source="n_trig01", target="fetch"),
+    tools.LinkSpec(source="fetch", target="pages"),
+    tools.LinkSpec(source="pages", target="list"),
+    tools.LinkSpec(source="list", target="n_chk001"),
+    tools.LinkSpec(source="n_chk001", target="save"),
+    tools.LinkSpec(source="save", target="changed"),
+    tools.LinkSpec(source="changed", target="alert", source_handle="true"),
+]
+UNLINK_STARTER = [tools.LinkSpec(source="n_trig01", target="n_chk001")]
+
+
+@pytest.mark.req("FR-07")
+async def test_add_steps_builds_a_complete_flow_in_one_tool_call():
+    ctx, deps, _ = make_ctx()
+    out = await tools.add_steps(ctx, LIST_FLOW_STEPS, LIST_FLOW_LINKS, UNLINK_STARTER)
+    assert out["added"] == 6 and out["linked"] == 7 and out["unlinked"] == 1
+    assert set(out["ids"]) == {"fetch", "pages", "list", "save", "changed", "alert"}
+    assert deps.tool_calls == 1
+    # The result is a flow the engine accepts for a dry run, not just as a draft.
+    assert engine.validate_flow(deps.draft) == []
+    # Ops replayed on the user's original draft give the same flow the agent ended with.
+    replayed = STARTER
+    for op in deps.ops:
+        replayed = tools.apply_op(replayed, op)
+    assert engine.parse_flow(replayed)[0] == engine.parse_flow(deps.draft)[0]
+
+
+async def test_add_steps_is_all_or_nothing():
+    ctx, deps, _ = make_ctx()
+    bad = [*LIST_FLOW_STEPS[:-1], tools.StepSpec(ref="alert", type="alert", config={"title": "<script>x</script>"})]
+    before = json.dumps(deps.draft, sort_keys=True)
+    with pytest.raises(ModelRetry, match="not applied"):
+        await tools.add_steps(ctx, bad, LIST_FLOW_LINKS, UNLINK_STARTER)
+    assert json.dumps(deps.draft, sort_keys=True) == before and deps.ops == []
+
+
+async def test_add_steps_checks_refs_parents_and_unlinks():
+    ctx, _, _ = make_ctx()
+    with pytest.raises(ModelRetry, match="own ref"):
+        await tools.add_steps(ctx, [LIST_FLOW_STEPS[0], LIST_FLOW_STEPS[0]])
+    with pytest.raises(ModelRetry, match="neither"):
+        await tools.add_steps(ctx, [LIST_FLOW_STEPS[0]], [tools.LinkSpec(source="fetch", target="ghost")])
+    with pytest.raises(ModelRetry, match="not a Loop"):
+        await tools.add_steps(ctx, [tools.StepSpec(ref="x", type="wait", config={}, parent="n_chk001")])
+    with pytest.raises(ModelRetry, match="no link"):
+        await tools.add_steps(ctx, [], unlink=[tools.LinkSpec(source="n_chk001", target="n_trig01")])
+    with pytest.raises(ModelRetry, match="already step ids"):
+        await tools.add_steps(ctx, [tools.StepSpec(ref="n_chk001", type="wait", config={})])
+
+
+async def test_add_steps_can_build_a_loop_body_by_ref():
+    ctx, deps, _ = make_ctx()
+    await tools.set_variable(ctx, "watch_urls", "url_list", ["https://shop.example.com/p/a"])
+    steps = [
+        tools.StepSpec(ref="loop", type="for_each", config={"source": {"var": "watch_urls"}}),
+        tools.StepSpec(ref="open", type="fetch_item_page", config={"url_field": "url"}, parent="loop"),
+        tools.StepSpec(
+            ref="read",
+            type="extract_fields",
+            config={"fields": [{"name": "price", "selector": ".price", "type": "price", "required": True}]},
+            parent="loop",
+        ),
+    ]
+    links = [
+        tools.LinkSpec(source="n_trig01", target="loop"),
+        tools.LinkSpec(source="loop", target="open", source_handle="item"),
+        tools.LinkSpec(source="open", target="read"),
+        tools.LinkSpec(source="read", target="loop", target_handle="next"),
+        tools.LinkSpec(source="loop", target="n_chk001", source_handle="done"),
+    ]
+    out = await tools.add_steps(ctx, steps, links, UNLINK_STARTER)
+    loop_id = out["ids"]["loop"]
+    body = [n for n in deps.draft["nodes"] if n.get("parentId") == loop_id]
+    assert {n["type"] for n in body} == {"fetch_item_page", "extract_fields"}

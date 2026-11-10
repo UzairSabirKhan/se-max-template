@@ -352,6 +352,7 @@ There's no auth for the hackathon build (see Known limits).
 | `fetch_page(url)` | Through `safe_fetch`; scripts stripped; about 30 KB outline; marked as untrusted content |
 | `test_selector(url, selector, attr?)` | Match count plus 5 sample values |
 | `add_node(type, config, parent_id?, position_hint?)` · `update_node(id, patch)` · `remove_node(id)` | Validated by Pydantic; `parent_id` places a node inside a `for_each` body |
+| `add_steps(steps, links?, unlink?)` | Several steps and their links in one call, checked all or nothing. Steps get short refs the links can use. Keeps a whole flow within the 8-tool-call limit |
 | `connect(source, target, source_handle?, target_handle?)` · `disconnect(...)` | Edges, including condition branches and loop handles (`item`, `next`, `done`) |
 | `set_variable(name, type, value)` · `remove_variable(name)` | Declare or change a variable; type and limits validated. Links the user pastes go into a `url_list` |
 | `test_selector_on_many(urls, selector, attr?)` | Runs one selector on up to 5 of the listed URLs, so selectors are proven to work across all of the site's product pages, not just the first |
