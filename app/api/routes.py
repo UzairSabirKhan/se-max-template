@@ -26,6 +26,7 @@ from app.db.flows import FlowNotFound, FlowRepo, VersionConflict
 from app.db.runs import RunRepo
 from app.engine import api as engine
 from app.engine.service import AlreadyRunning, runs
+from app.flow.selector import data_for_step, samples_from_report
 
 router = APIRouter(prefix="/api")
 
@@ -243,6 +244,29 @@ async def run_stream(run_id: str, store: Runs) -> EventSourceResponse:
         yield {"event": "finished", "data": json.dumps(summary, default=str)}
 
     return EventSourceResponse(stored())
+
+
+class DataSelectorRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    draft: dict[str, Any]
+    node_id: Annotated[str, StringConstraints(min_length=1, max_length=32)]
+
+
+@router.post("/flows/{flow_id}/data-selector")
+async def data_selector(flow_id: str, body: DataSelectorRequest, repo: Repo, store: Runs) -> dict[str, Any]:
+    """What a step can use from the steps before it: fields grouped by source step, with types, allowed
+    condition operators and a sample value from the flow's latest run; plus the variables. Uses the
+    editor's current draft (unsaved edits included)."""
+    await _load(repo, flow_id)
+    normalised, issues = engine.parse_flow(body.draft, draft=True)
+    if issues:
+        raise invalid_flow(issues)
+    latest = await store.list_runs(flow_id, 1)
+    report = await store.get_run(latest[0]["id"]) if latest else None
+    result = data_for_step(normalised, body.node_id, samples_from_report(report))
+    if result.get("error"):
+        raise ApiError(404, "not_found", result["error"])
+    return result
 
 
 @router.get("/flows/{flow_id}/results")

@@ -67,6 +67,7 @@ All JSON. Errors are always `{"error": code, "message": text}` and never a 500 w
 | GET | `/api/flows/{id}/runs?limit=20` | — | `RunSummary[]` |
 | GET | `/api/runs/{id}` | — | `RunReport` |
 | GET | `/api/runs/{id}/stream` | — | SSE: `node_started {node_id}`, `node_finished {node_id, items_in, items_out}`, `iteration {node_id, index, key, status}`, `finished {RunSummary}` |
+| POST | `/api/flows/{id}/data-selector` | `{draft: Flow, node_id}` | `DataSelector`: what that step can use from the steps BEFORE it (for the field picker) · 404 unknown step or flow · 422 unsafe draft |
 | GET | `/api/flows/{id}/results` | — | `[{node_id, name, items}]` from the latest run |
 | GET | `/api/flows/{id}/alerts` | — | `Alert[]` (newest first) |
 | POST | `/api/alerts/{id}/read` | — | 204 |
@@ -99,6 +100,16 @@ type Alert = { id: string; flow_id: string; run_id: string; node_id: string|null
                level: "info"|"warning"|"error"; title: string; message: string; items: Item[]; created_at: string; read: boolean };
 type Record = { id: string; key: string; data: Record<string, unknown>; first_seen: string; last_changed: string|null; removed_at: string|null };
 type RecordChange = { run_id: string; at: string; change: "new"|"changed"|"removed"; field: string|null; old_value: unknown; new_value: unknown; pct_change: number|null };
+type DataSelector = {
+  node_id: string;
+  groups: { source_node_id: string; source_type: string; label: string;   // e.g. "Extract List"
+            fields: { name: string;                       // store THIS plain name in the setting (no templates)
+                      type: "text"|"price"|"int"|"url"|"date"|"stock"|"change";
+                      ops: string[];                      // condition operators allowed for this field here
+                      sample: unknown;                    // from the flow's latest run, or null
+                      source_node_id: string | null }[] }[];
+  variables: { name: string; type: string; sample: unknown }[];  // pick -> store {"var": name}
+};
 ```
 
 Prices travel as **strings** holding a decimal (`"1250.00"`), never floats.
