@@ -63,3 +63,6 @@ Thumbs.db
 
 # Browser automation output
 .playwright-mcp/
+
+# Scratch files from local smoke tests
+*.tmp
