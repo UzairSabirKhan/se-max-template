@@ -108,6 +108,39 @@ class Database:
             event.listen(self.engine.sync_engine, "connect", _sqlite_pragmas)
         self.sessions = async_sessionmaker(self.engine, expire_on_commit=False)
 
+    def describe(self) -> str:
+        """Where the database is, for logs: host, port and name, never the password."""
+        if self.target.is_sqlite:
+            return "SQLite file"
+        parts = urlsplit(self.target.url)
+        return f"Postgres at {parts.hostname}:{parts.port or 5432}{parts.path}"
+
+    async def wait_until_ready(self, delays: tuple[float, ...] = (1, 2, 3, 5, 8),
+                               sleep=asyncio.sleep) -> None:
+        """Retry the first connection for about 20 s, then fail with ONE clear line.
+
+        On Railway the private network (postgres.railway.internal) can take a few seconds to answer
+        after a container starts; a wrong DATABASE_URL (an example value, a typo, a reference to a
+        service that doesn't exist) never answers, and the message then says which host was tried.
+        """
+        last: Exception | None = None
+        for attempt, delay in enumerate((*delays, None)):
+            try:
+                await self.ping(timeout=10)
+                return
+            except Exception as exc:  # DNS failure, refused, timeout, bad password...
+                last = exc
+                if delay is None:
+                    break
+                log.warning("Database not reachable yet (%s, attempt %d): %s", self.describe(), attempt + 1,
+                            _short(exc))
+                await sleep(delay)
+        raise DatabaseConfigError(
+            f"Can't reach the database ({self.describe()}): {_short(last)}. Check DATABASE_URL: on Railway it "
+            "should be ${{Postgres.DATABASE_URL}} with a Postgres service in the same project and environment; "
+            "it must not be the example value from .env.example."
+        ) from None
+
     async def create_tables(self) -> None:
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
@@ -125,6 +158,17 @@ class Database:
 
     async def dispose(self) -> None:
         await self.engine.dispose()
+
+
+def _short(exc: Exception | None) -> str:
+    """'gaierror: [Errno -2] Name or service not known', without the 100-line traceback."""
+    if exc is None:
+        return "no answer"
+    if isinstance(exc, TimeoutError | asyncio.TimeoutError):
+        return "timed out"
+    root = exc.__cause__ or exc.__context__ or exc
+    text = str(root) or str(exc) or exc.__class__.__name__
+    return f"{root.__class__.__name__}: {text}"[:200]
 
 
 def _sqlite_pragmas(dbapi_conn: Any, _: Any) -> None:
