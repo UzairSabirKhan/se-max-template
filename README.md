@@ -8,6 +8,12 @@
 
 ScrapeOnce is a no-code builder for website-watching flows. You describe what to watch, and an AI assistant builds the flow on a canvas for you to review. Once you publish, the flow runs on its schedule with **no AI at all**, and it alerts you when prices change, new items appear, or the site's layout breaks.
 
+## Product demo video
+
+[![ScrapeOnce demo: the assistant builds a scholarship-watching flow from one sentence](docs/media/scrapeonce-demo.png)](docs/media/scrapeonce-demo.mp4)
+
+*One minute: we ask the assistant to watch a scholarship board. It fetches the page, tests its selectors, runs a test, and proposes the flow on the canvas for us to accept. Click the image to play the video ([MP4](docs/media/scrapeonce-demo.mp4), 1 MB).*
+
 ## Problem and user
 
 The user is a small seller or shopper who wants to know when competitors' prices move. They're not a developer: scraping scripts are out of reach, and paid monitoring tools are too expensive. Asking an AI every time is slow and costly, and it can't be trusted to notice when a page silently changes. ScrapeOnce uses AI only **once**, to set the flow up. Every run after that is plain rules: deterministic, cheap, and checked for breakage.
