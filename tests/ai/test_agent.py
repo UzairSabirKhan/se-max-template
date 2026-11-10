@@ -178,6 +178,8 @@ async def test_instructions_carry_the_rules_the_draft_and_the_selection():
     )
     text = seen["instructions"]
     assert "untrusted data" in text and "cannot save, publish" in text
+    # The rules that stop "any of these prices drops" turning into "any of these, always" (seen live).
+    assert "ask ONE short question" in text and "chain two conditions" in text
     assert '"id":"n_trig01"' in text and "selected: n_chk001" in text
     assert rec.events == [("text", {"delta": "ok\n\n"}), ("done", {"tool_calls": 0})]
 
