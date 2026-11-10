@@ -73,7 +73,8 @@ async def run(model, draft=None, message="Track prices on https://shop.example.c
 # run_agent
 # ---------------------------------------------------------------------------
 @pytest.mark.req("FR-06")
-async def test_agent_builds_the_list_tracking_flow_from_one_sentence():
+async def test_agent_builds_the_list_tracking_flow_from_one_sentence(fake_web):
+    fake_web["/list"] = fake_web["/shop"]  # the real mock shop page, served offline (tests/conftest.py)
     events = await run(build_flow_model())
     names = [e for e, _ in events]
 

@@ -3,26 +3,35 @@
 This module is the ONLY door from app/ai into the engine. Nothing in app/engine imports
 app/ai (tests/engine/test_zero_ai.py checks this).
 
-Status at M0: validate_flow and node_type_schemas are real; the rest are STUBS returning
-fixed example data. A20 replaces each stub with the real implementation, same signature.
+Status: validate_flow, parse_flow, node_type_schemas, fetch_outline and test_selector are REAL;
+dry_run, list_datasets and sample_records are still STUBS until the runner and records land (A13–A15).
 """
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
+from selectolax.lexbor import LexborHTMLParser
+
 from app.engine import stub_data
+from app.engine.fetcher import FetchError, FetchOptions, safe_fetch, settings_options
 from app.flow.schema import node_type_schemas as _node_type_schemas
 from app.flow.validate import parse_flow as _parse_flow
 from app.flow.validate import validate_flow as _validate_flow
 
+#: The URL can't be used (internal address, not HTML, too big, unreachable, HTTP error...). `.reason`
+#: is a plain-language sentence. Same class as the fetcher's error, under the name the agent tools use.
+FetchRefused = FetchError
 
-class FetchRefused(Exception):
-    """safe_fetch refused the URL (internal address, not HTML, too big, ...)."""
+MAX_OUTLINE_CHARS = 30_000
+PAGE_CACHE_S = 60.0
+_NOISE = "script, style, noscript, svg, iframe, template, link, meta, object, embed, canvas"
 
-    def __init__(self, reason: str) -> None:
-        super().__init__(reason)
-        self.reason = reason
+# The assistant often fetches a page and then tests several selectors on it. A short cache means one
+# request to the site instead of one per selector (each would also wait for the 2 s politeness gap).
+# Runs never use this cache: they always fetch fresh.
+_page_cache: dict[str, tuple[float, str]] = {}
 
 
 def validate_flow(flow: dict, for_publish: bool = False, draft: bool = False) -> list[dict]:
@@ -48,23 +57,55 @@ def node_type_schemas() -> list[dict]:
     return _node_type_schemas()
 
 
+def fetch_options() -> FetchOptions:
+    """The allowlist from settings. Tests replace this (fake DNS + MockTransport)."""
+    return settings_options()
+
+
+async def _page_html(url: str) -> str:
+    cached = _page_cache.get(url)
+    if cached and time.monotonic() - cached[0] < PAGE_CACHE_S:
+        return cached[1]
+    result = await safe_fetch(url, fetch_options())
+    if result.status >= 400:
+        raise FetchRefused(f"The page answered with HTTP {result.status}", "refused")
+    if len(_page_cache) > 50:
+        _page_cache.clear()
+    _page_cache[url] = (time.monotonic(), result.text)
+    return result.text
+
+
+def clear_page_cache() -> None:
+    _page_cache.clear()
+
+
 async def fetch_outline(url: str) -> str:
-    """Page HTML through safe_fetch, scripts stripped, about 30 KB. STUB."""
-    return (
-        "<!-- STUB outline -->\n"
-        '<div id="product-grid">\n'
-        '  <div class="product"><h2>Blue Kettle</h2><span class="price">Rs 1,099</span>'
-        '<span class="stock">In stock</span><a href="/shop/p/blue-kettle">View</a></div>\n'
-        '  <div class="product"><h2>Steel Flask</h2><span class="price">Rs 2,400</span>'
-        '<span class="stock">In stock</span><a href="/shop/p/steel-flask">View</a></div>\n'
-        "</div>\n"
-        '<a class="next" href="/shop?page=2">Next</a>'
-    )
+    """The page's HTML through safe_fetch, with scripts, styles and other noise removed, about 30 KB.
+
+    Tags, classes, ids and links are kept: they are what selectors are built from. REAL.
+    Raises FetchRefused with a plain-language reason.
+    """
+    tree = LexborHTMLParser(await _page_html(url))
+    for node in tree.css(_NOISE):
+        node.decompose()
+    root = tree.body or tree.root
+    html = root.html if root is not None else ""
+    lines = (line.strip() for line in (html or "").splitlines())
+    return "\n".join(line for line in lines if line)[:MAX_OUTLINE_CHARS]
 
 
 async def test_selector(url: str, selector: str, attr: str | None = None) -> dict[str, Any]:
-    """Match count and up to 5 sample values. STUB."""
-    return {"count": 12, "samples": ["Rs 1,099", "Rs 2,400", "Rs 3,999", "Rs 850", "Rs 1,500"]}
+    """How many elements match a CSS selector, and up to 5 sample values (text, or `attr`). REAL."""
+    tree = LexborHTMLParser(await _page_html(url))
+    try:
+        nodes = tree.css(selector)
+    except Exception:  # selectolax raises on a selector it can't parse
+        return {"count": 0, "samples": [], "error": "Selector does not parse"}
+    samples: list[str] = []
+    for node in nodes[:5]:
+        value = node.attributes.get(attr) if attr else node.text(deep=True, separator=" ", strip=True)
+        samples.append(" ".join(str(value or "").split()))
+    return {"count": len(nodes), "samples": samples}
 
 
 async def dry_run(flow: dict, flow_id: str | None, until_node: str | None = None) -> dict[str, Any]:
