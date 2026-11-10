@@ -20,6 +20,7 @@ from app.api.agent import router as agent_router
 from app.api.errors import ApiError, install_error_handlers
 from app.api.limits import BodySizeLimit
 from app.api.routes import router as api_router
+from app.mockshop.routes import router as shop_router
 from app.db.session import Database, resolve_database_url
 from app.settings import settings
 
@@ -66,6 +67,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
 
     app.include_router(api_router)
     app.include_router(agent_router)  # Workstream B: POST /api/flows/{id}/agent
+    app.include_router(shop_router)  # /shop: the demo shop (the only site scraped during the event)
 
     @app.api_route("/api", methods=["GET", "POST", "PUT", "DELETE", "PATCH"], include_in_schema=False)
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"],

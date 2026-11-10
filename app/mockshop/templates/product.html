@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ p.title }} | Chai & Co.{% endblock %}
+{% block content %}
+<article class="product-page" data-sku="{{ p.sku }}">
+  <h1 class="product-title">{{ p.title }}</h1>
+  {% if layout == "v1" %}<p class="price">{{ price(p.price) }}</p>{% else %}<p class="amount">{{ price(p.price) }}</p>{% endif %}
+  <p class="availability">{{ p.stock }}</p>
+  <p id="desc">{{ p.description }}</p>
+  <p class="sku">SKU: {{ p.sku }}</p>
+  <a href="/shop">Back to shop</a>
+</article>
+{% endblock %}
