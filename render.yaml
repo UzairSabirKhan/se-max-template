@@ -21,7 +21,5 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
-      - key: ALLOWED_DOMAINS     # optional: leave empty to allow any public site
-        sync: false
       - key: PUBLIC_BASE_URL
         sync: false

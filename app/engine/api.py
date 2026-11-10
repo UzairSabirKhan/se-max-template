@@ -72,7 +72,7 @@ def node_type_schemas() -> list[dict]:
 
 
 def fetch_options() -> FetchOptions:
-    """The allowlist from settings. Tests replace this (fake DNS + MockTransport)."""
+    """Fetch options for the agent's page tools. Tests replace this (fake DNS + MockTransport)."""
     return settings_options()
 
 

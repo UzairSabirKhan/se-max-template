@@ -144,14 +144,6 @@ async def test_connects_to_the_checked_ip_with_the_real_host_name():
     assert seen["ua"].startswith("ScrapeOnceBot/")
 
 
-# --- EC-09: allowlist --------------------------------------------------------------------------------
-@pytest.mark.req("FR-19")
-async def test_allowlist():
-    opts, _ = options(page(), allowed_domains=["scrapeonce.up.railway.app"])
-    assert (await safe_fetch("https://scrapeonce.up.railway.app/shop", opts)).status == 200
-    with pytest.raises(FetchError) as err:
-        await safe_fetch("https://real-store.example.com/", opts)
-    assert err.value.kind == "not_allowed"
 
 
 # --- EC-10 – EC-14: size, compression, slowness, content type, statuses ------------------------------
@@ -274,25 +266,21 @@ async def test_charset_from_header_is_used():
     assert (await safe_fetch("https://shop.example.com/", opts)).text == "Café"
 
 
-@pytest.mark.req("FR-19")
-def test_any_public_site_is_allowed_unless_an_allowlist_is_set(monkeypatch):
-    """No allowlist by default (any public website can be tracked); ALLOWED_DOMAINS is an opt-in limit."""
-    import app.settings as app_settings
-    from app.engine.fetcher import settings_options
-
-    monkeypatch.setattr(app_settings, "settings", app_settings.Settings())
-    monkeypatch.setenv("ALLOWED_DOMAINS", "")
-    monkeypatch.setenv("PUBLIC_BASE_URL", "https://scrapeonce-production-839d.up.railway.app")
-    monkeypatch.setattr(app_settings, "settings", app_settings.Settings())
-    assert settings_options().allowed_domains == []
-    monkeypatch.setenv("ALLOWED_DOMAINS", "shop.example.com, Other.Example.org")
-    monkeypatch.setattr(app_settings, "settings", app_settings.Settings())
-    assert settings_options().allowed_domains == ["shop.example.com", "other.example.org"]
-
-
 @pytest.mark.req("FR-18")
 async def test_internal_addresses_are_refused_even_without_an_allowlist():
-    opts, _ = options(never_called)  # no allowed_domains
+    opts, _ = options(never_called)
     with pytest.raises(FetchError) as err:
         await safe_fetch("http://169.254.169.254/latest/meta-data/", opts)
     assert err.value.kind == "internal"
+
+
+@pytest.mark.req("FR-19")
+async def test_any_public_website_can_be_fetched_and_allowed_domains_is_ignored(monkeypatch):
+    """There is no allowlist: a leftover ALLOWED_DOMAINS on a host (Railway) must not block any site."""
+    from app.engine.fetcher import settings_options
+
+    monkeypatch.setenv("ALLOWED_DOMAINS", "your-app.up.railway.app")
+    assert not hasattr(settings_options(), "allowed_domains")
+    opts, _ = options(page())
+    for url in ("https://scrapeonce-production-839d.up.railway.app/shop", "https://any-store.example.org/products"):
+        assert (await safe_fetch(url, opts)).status == 200

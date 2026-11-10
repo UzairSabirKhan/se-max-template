@@ -443,7 +443,7 @@ What PydanticAI is **not** used for: fetching pages (always our `safe_fetch`), s
 | Threat | Control |
 |---|---|
 | SSRF to internal or metadata addresses | `safe_fetch`: http/https only; resolve the host and refuse any IP that is not global; checked again on every redirect (at most 3); timeouts; 2 MB decompressed cap; HTML content types only |
-| Scraping sites without permission | Optional `ALLOWED_DOMAINS` allowlist (empty by default: any public site can be tracked; during the event we only demo our own mock shop); honest User-Agent; per-domain rate limit; no evasion |
+| Scraping sites without permission | Any public site can be tracked (no allowlist); during the event we only demo our own mock shop; honest User-Agent; per-domain rate limit; no evasion |
 | Prompt injection from page content | Page text goes to the agent marked as untrusted; the agent can only produce schema-valid nodes; it can't publish; a hostile-page test |
 | Unsafe flow content | Pydantic `extra="forbid"`; fixed operators; no code, no regex; selectors limited to 200 characters and parsed before use |
 | XSS from scraped text | React escapes text by default; no `dangerouslySetInnerHTML` |

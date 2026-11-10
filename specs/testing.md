@@ -56,7 +56,7 @@ Filled from the final CI run. Commit: `Pending`.
 | EC-06 | A public URL that redirects to `169.254.169.254` | Refused at the redirect | `test_safe_fetch::test_redirect_to_internal` | Pending |
 | EC-07 | More than 3 redirects | Error: "too many redirects" | `test_safe_fetch::test_redirect_limit` | Pending |
 | EC-08 | `file://`, `gopher://`, `ftp://`, `javascript:` | Refused: "only http and https" | `test_safe_fetch::test_scheme` | Pending |
-| EC-09 | A domain not in `ALLOWED_DOMAINS` | Refused: "domain not allowed" | `test_safe_fetch::test_allowlist` | Pending |
+| EC-09 | Any public site, even with a leftover `ALLOWED_DOMAINS` variable | Fetched normally (there is no allowlist) | `test_safe_fetch::test_any_public_website_can_be_fetched_and_allowed_domains_is_ignored` | Pending |
 
 ### Fetch robustness (FR-18, FR-26, NFR-04, NFR-07)
 

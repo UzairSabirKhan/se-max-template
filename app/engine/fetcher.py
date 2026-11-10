@@ -2,7 +2,7 @@
 
 Every request, from a run or from the assistant, goes through here:
 
-1. http / https only; no user:password in the URL; host must be on the allowlist (if one is set).
+1. http / https only; no user:password in the URL. Any public website may be fetched.
 2. The host is resolved and EVERY address must be public. IP literals in any spelling (127.1, 0x7f.1,
    2130706433, octal, IPv4-mapped IPv6) are decoded first, so tricks don't pass as hostnames.
 3. The connection goes to the exact IP that was checked (TLS still verifies the real hostname via SNI),
@@ -43,7 +43,7 @@ MIN_INTERVAL_S = 2.0
 HTML_TYPES = ("text/html", "application/xhtml+xml")
 RETRY_STATUSES = {429, 500, 502, 503, 504}
 
-ErrorKind = Literal["refused", "internal", "not_allowed", "not_html", "too_large", "timeout", "network",
+ErrorKind = Literal["refused", "internal", "not_html", "too_large", "timeout", "network",
                     "redirects"]
 
 
@@ -103,13 +103,6 @@ def is_public(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     return ip.is_global and not ip.is_multicast
 
 
-def host_allowed(host: str, allowed: list[str]) -> bool:
-    if not allowed:
-        return True
-    host = host.lower().rstrip(".")
-    return any(host == a or host.endswith("." + a) for a in allowed)
-
-
 @dataclass(frozen=True)
 class _Target:
     url: str
@@ -119,7 +112,7 @@ class _Target:
     ip: str
 
 
-async def check_url(url: str, allowed: list[str], resolver: Resolver) -> _Target:
+async def check_url(url: str, resolver: Resolver) -> _Target:
     """Validate a URL and pick the checked IP to connect to. Raises FetchError."""
     if not isinstance(url, str) or any(ch.isspace() or ord(ch) < 32 for ch in url):
         raise FetchError("That isn't a valid URL", "refused")
@@ -144,8 +137,6 @@ async def check_url(url: str, allowed: list[str], resolver: Resolver) -> _Target
     else:
         if host == "localhost" or host.endswith((".localhost", ".internal", ".local")):
             raise FetchError(f"{host} is an internal address", "internal")
-        if not host_allowed(host, allowed):
-            raise FetchError(f"{host} is not on the list of allowed sites", "not_allowed")
         try:
             addresses = await resolver(host, port)
         except OSError:
@@ -157,8 +148,6 @@ async def check_url(url: str, allowed: list[str], resolver: Resolver) -> _Target
         resolved = literal_ip(address)
         if resolved is None or not is_public(resolved):
             raise FetchError(f"{host} points to a private or internal address", "internal")
-    if ip is not None and not host_allowed(host, allowed):
-        raise FetchError(f"{host} is not on the list of allowed sites", "not_allowed")
     return _Target(url=url, scheme=scheme, host=host, port=port, ip=addresses[0])
 
 
@@ -267,7 +256,6 @@ default_throttle = HostThrottle()
 # ---------------------------------------------------------------------------
 @dataclass
 class FetchOptions:
-    allowed_domains: list[str] = field(default_factory=list)
     resolver: Resolver = system_resolver
     transport: httpx.AsyncBaseTransport | None = None  # tests pass httpx.MockTransport
     throttle: HostThrottle = field(default_factory=lambda: default_throttle)
@@ -294,7 +282,7 @@ async def _fetch_once(url: str, opts: FetchOptions, client: httpx.AsyncClient) -
     redirects: list[str] = []
     current = url
     while True:
-        target = await check_url(current, opts.allowed_domains, opts.resolver)
+        target = await check_url(current, opts.resolver)
         await opts.throttle.wait(target.host)
         request = _pinned_request(target, client)
         response = await client.send(request, stream=True)
@@ -355,13 +343,9 @@ async def safe_fetch(url: str, options: FetchOptions | None = None) -> FetchResu
 
 
 def settings_options() -> FetchOptions:
-    """FetchOptions from the app settings.
+    """FetchOptions for real fetches. Any public website can be tracked; there is no allowlist.
 
-    Any public website can be tracked. ALLOWED_DOMAINS is an OPTIONAL extra restriction (comma-separated
-    hosts; subdomains included): empty means no allowlist. The checks that keep the server safe apply to
-    every URL either way: private / internal / metadata addresses refused (after DNS and on every
-    redirect), http(s) only, 2 MB, timeouts, HTML only.
+    What keeps the server safe applies to every URL: private / internal / metadata addresses refused
+    (after DNS and on every redirect), http(s) only, 2 MB, timeouts, HTML only.
     """
-    from app.settings import settings
-
-    return FetchOptions(allowed_domains=list(settings.allowed_domains))
+    return FetchOptions()
