@@ -64,7 +64,7 @@ Status: `Planned`, then `In progress`, then `Done` (with a test passing in CI), 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
 | FR-18 | `safe_fetch` is used for **every** outbound request: http/https only; the host is resolved and any IP that is not global is refused (private, loopback, link-local, metadata, IPv6 local); the check runs again on every redirect (at most 3); 5 s connect and 15 s total timeouts; 2 MB cap on the decompressed body; HTML content types only | Must | Done |
-| FR-19 | Fetches are limited to `ALLOWED_DOMAINS` (default: the app's own host, so only the mock shop during the event) | Should | Done |
+| FR-19 | Any public website can be tracked; an optional `ALLOWED_DOMAINS` setting limits fetches to listed hosts. Internal addresses are refused either way (FR-18) | Should | Done |
 | FR-20 | Static HTML only. A page that is a JavaScript app shell gets the UNSUPPORTED verdict with "This page loads its data with JavaScript, which ScrapeOnce does not support." | Must | Done |
 | FR-21 | `extract_list` (base selector + fields + identity key) and `extract_fields` (one page = one item), with tested normalisers for text, price, int, url, date and stock | Must | Done |
 | FR-22 | `for_each` loops over items or a list variable: at most 25 items, one at a time, no nesting, body limited to `fetch_item_page`, `extract_fields`, `condition` and `wait`, `on_error` = skip or stop | Should | Done |

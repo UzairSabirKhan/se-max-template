@@ -272,3 +272,27 @@ async def test_charset_from_header_is_used():
 
     opts, _ = options(handler)
     assert (await safe_fetch("https://shop.example.com/", opts)).text == "Café"
+
+
+@pytest.mark.req("FR-19")
+def test_any_public_site_is_allowed_unless_an_allowlist_is_set(monkeypatch):
+    """No allowlist by default (any public website can be tracked); ALLOWED_DOMAINS is an opt-in limit."""
+    import app.settings as app_settings
+    from app.engine.fetcher import settings_options
+
+    monkeypatch.setattr(app_settings, "settings", app_settings.Settings())
+    monkeypatch.setenv("ALLOWED_DOMAINS", "")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://scrapeonce-production-839d.up.railway.app")
+    monkeypatch.setattr(app_settings, "settings", app_settings.Settings())
+    assert settings_options().allowed_domains == []
+    monkeypatch.setenv("ALLOWED_DOMAINS", "shop.example.com, Other.Example.org")
+    monkeypatch.setattr(app_settings, "settings", app_settings.Settings())
+    assert settings_options().allowed_domains == ["shop.example.com", "other.example.org"]
+
+
+@pytest.mark.req("FR-18")
+async def test_internal_addresses_are_refused_even_without_an_allowlist():
+    opts, _ = options(never_called)  # no allowed_domains
+    with pytest.raises(FetchError) as err:
+        await safe_fetch("http://169.254.169.254/latest/meta-data/", opts)
+    assert err.value.kind == "internal"

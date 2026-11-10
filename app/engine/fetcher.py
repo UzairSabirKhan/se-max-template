@@ -355,12 +355,13 @@ async def safe_fetch(url: str, options: FetchOptions | None = None) -> FetchResu
 
 
 def settings_options() -> FetchOptions:
-    """FetchOptions from the app settings: ALLOWED_DOMAINS, or the app's own host from PUBLIC_BASE_URL."""
+    """FetchOptions from the app settings.
+
+    Any public website can be tracked. ALLOWED_DOMAINS is an OPTIONAL extra restriction (comma-separated
+    hosts; subdomains included): empty means no allowlist. The checks that keep the server safe apply to
+    every URL either way: private / internal / metadata addresses refused (after DNS and on every
+    redirect), http(s) only, 2 MB, timeouts, HTML only.
+    """
     from app.settings import settings
 
-    allowed = list(settings.allowed_domains)
-    if not allowed and settings.public_base_url:
-        host = urlsplit(settings.public_base_url).hostname
-        if host:
-            allowed = [host.lower()]
-    return FetchOptions(allowed_domains=allowed)
+    return FetchOptions(allowed_domains=list(settings.allowed_domains))

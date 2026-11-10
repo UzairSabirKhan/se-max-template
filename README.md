@@ -69,7 +69,8 @@ Copy `.env.example` to `.env` and fill in what you need. Names only, never commi
 | `DATABASE_URL` | Postgres. Leave empty locally to use a SQLite file; required on Railway and Render |
 | `AI_MODEL`, `AI_FALLBACK_MODEL` | The assistant's models, e.g. `google:<gemini-model>`; the fallback may list several, comma-separated, such as `groq:<model>,anthropic:<claude-model>` |
 | `GEMINI_API_KEY`, `GROQ_API_KEY`, `ANTHROPIC_API_KEY` | Keys for the models above. Without any, the assistant shows "offline" and everything else works |
-| `ALLOWED_DOMAINS`, `PUBLIC_BASE_URL` | Which hosts flows may fetch, and the app's public URL (for mock shop links) |
+| `ALLOWED_DOMAINS` | Optional. Leave empty to allow any public site; set hosts to restrict flows to them |
+| `PUBLIC_BASE_URL` | The app's public URL (for mock shop links) |
 
 ### Run
 
@@ -100,7 +101,7 @@ npm --prefix web run build
 The `Dockerfile` builds the editor and runs FastAPI with one worker (the scheduler runs inside the app). On Railway:
 
 1. Add a PostgreSQL database to the project.
-2. On the web service, set `DATABASE_URL` to `${{Postgres.DATABASE_URL}}`, plus `PUBLIC_BASE_URL`, `ALLOWED_DOMAINS` and the AI variables.
+2. On the web service, set `DATABASE_URL` to `${{Postgres.DATABASE_URL}}`, plus `PUBLIC_BASE_URL` and the AI variables. Leave `ALLOWED_DOMAINS` unset so any public site can be tracked.
 3. Deploy. `/health` returns `{"status":"ok","database":"ok"}` when it's up.
 
 The app refuses to start on a host without `DATABASE_URL`, because the host's disk is wiped on every deploy and saved flows would be lost.
