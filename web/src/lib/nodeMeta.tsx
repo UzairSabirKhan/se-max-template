@@ -120,6 +120,7 @@ export const NODE_META: Record<NodeType, NodeMeta> = {
 };
 
 export const PALETTE_GROUPS: { group: NodeMeta["group"]; types: NodeType[] }[] = [
+  { group: "Trigger", types: ["trigger"] },
   { group: "Source", types: ["fetch_page", "paginate", "extract_list"] },
   { group: "Check", types: ["check_page"] },
   { group: "Store", types: ["save_records"] },

@@ -14,6 +14,8 @@ export function Palette() {
   const [q, setQ] = useState("");
   const rf = useReactFlow();
   const hasCheck = useEditor((s) => s.draft.nodes.some((n) => n.type === "check_page"));
+  const hasTrigger = useEditor((s) => s.draft.nodes.some((n) => n.type === "trigger"));
+  const once = (t: NodeType) => (t === "check_page" && hasCheck) || (t === "trigger" && hasTrigger);
 
   const add = (t: NodeType) => {
     const meta = NODE_META[t];
@@ -59,7 +61,7 @@ export function Palette() {
               </p>
               {types.map((t) => {
                 const m = NODE_META[t];
-                const off = m.disabled || (t === "check_page" && hasCheck);
+                const off = m.disabled || once(t);
                 return (
                   <div
                     key={t}
@@ -73,7 +75,7 @@ export function Palette() {
                     }}
                     onClick={() => !off && add(t)}
                     onKeyDown={(e) => e.key === "Enter" && !off && add(t)}
-                    title={m.disabled ? "Needs a browser, coming soon" : t === "check_page" && hasCheck ? "Already in this flow (exactly one)" : `${m.blurb}. Drag onto the canvas or click to add.`}
+                    title={m.disabled ? "Needs a browser, coming soon" : once(t) ? "Already in this flow (exactly one)" : `${m.blurb}. Drag onto the canvas or click to add.`}
                     className={clsx(
                       "group flex items-center gap-2.5 rounded-lg px-2 py-1.5",
                       off ? "cursor-not-allowed opacity-50" : "cursor-grab hover:bg-zinc-100 active:cursor-grabbing",

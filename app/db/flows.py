@@ -20,15 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import AlertRow, FlowRow, utcnow
 
-STARTER_DRAFT: dict[str, Any] = {
-    "version": 0,
-    "variables": [],
-    "nodes": [
-        {"id": "t1", "type": "trigger", "position": {"x": 0, "y": 0}, "config": {"mode": "manual"}},
-        {"id": "k1", "type": "check_page", "position": {"x": 0, "y": 360}, "config": {}},
-    ],
-    "edges": [],
-}
+#: A new flow starts empty. The user (or the assistant) adds the Trigger, a source and Check page;
+#: draft validation allows an incomplete flow, dry run and publish require all of them.
+STARTER_DRAFT: dict[str, Any] = {"version": 0, "variables": [], "nodes": [], "edges": []}
 
 
 class VersionConflict(Exception):

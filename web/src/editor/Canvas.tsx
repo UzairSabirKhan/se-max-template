@@ -161,6 +161,19 @@ export function Canvas({ onTestNode, onTestFlow, testing }: { onTestNode: (id: s
         {showMap && <MiniMap pannable zoomable className="!bottom-16 !right-3 rounded-lg border border-line" maskColor="rgb(247 247 249 / 0.7)" nodeColor="#d7ccff" />}
       </ReactFlow>
 
+      {/* a new flow starts empty: say how to begin */}
+      {draft.nodes.length === 0 && !pending.length && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="max-w-sm rounded-xl border border-dashed border-line bg-white/80 px-6 py-5 text-center">
+            <p className="text-sm font-semibold text-zinc-800">This flow is empty</p>
+            <p className="mt-1 text-sm text-zinc-500">
+              Ask the assistant to build it, or start with a <span className="font-medium">Schedule</span> step
+              from the Steps panel, then add a source and <span className="font-medium">Check page</span>.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* top centre: test flow or pending review */}
       <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
         {pending.length ? (

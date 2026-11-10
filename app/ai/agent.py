@@ -66,9 +66,9 @@ How a flow is shaped:
   loop to check_page with source_handle "done".
 - After check_page: save_records, then condition steps, then alert steps. A condition's matches leave by
   source_handle "true" (non-matches by "false").
-- A new flow starts with just a trigger and check_page. Look at the draft below: if they are linked to
-  each other directly, remove that link (add_steps "unlink") when you put a source between them; if
-  they aren't linked, don't unlink anything.
+- A new flow starts EMPTY. If the draft below has no trigger or no check_page, add them in your add_steps
+  call (exactly one of each). If both already exist and are linked to each other directly, remove that
+  link (add_steps "unlink") when you put a source between them; if they aren't linked, don't unlink.
 
 Step settings:
 - trigger: mode "manual" | "interval" (every_minutes >= 1) | "daily" (at_time "HH:MM", timezone).
@@ -200,7 +200,9 @@ def tool_summary(name: str, content: Any, ok: bool) -> str:
         return f"{len(content)} {'step types' if name == 'list_node_types' else 'found'}"
     text = str(content)
     if name == "fetch_page":
-        return "refused: " + _first_line(text) if text.startswith("Refused") else f"{len(text) // 1024 or 1} KB page"
+        if text.startswith("Refused"):  # the tool already says "Refused: <reason>"; don't say it twice
+            return "refused: " + _first_line(text.removeprefix("Refused:").strip())
+        return f"{len(text) // 1024 or 1} KB page"
     if name == "query_records":
         return "sample read"
     return _first_line(text)

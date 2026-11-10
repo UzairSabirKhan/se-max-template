@@ -113,7 +113,7 @@ def test_create_list_get_delete_flow(client):
     assert created.status_code == 201
     flow = created.json()
     assert flow["status"] == "draft"
-    assert {n["type"] for n in flow["draft"]["nodes"]} == {"trigger", "check_page"}
+    assert flow["draft"]["nodes"] == [] and flow["draft"]["edges"] == []  # a new flow starts empty
     assert [f["id"] for f in client.get("/api/flows").json()] == [flow["id"]]
     assert client.get(f"/api/flows/{flow['id']}").json()["name"] == "Shop prices"
     assert client.delete(f"/api/flows/{flow['id']}").status_code == 204
@@ -146,7 +146,7 @@ def test_save_increments_version_and_detects_conflicts(client):
 def test_save_refuses_unsafe_draft_with_issues(client):
     flow = client.post("/api/flows", json={"name": "A"}).json()
     draft = copy.deepcopy(flow["draft"])
-    draft["nodes"][0]["config"]["script"] = "rm -rf /"
+    draft["nodes"].append({"id": "t1", "type": "trigger", "config": {"mode": "manual", "script": "rm -rf /"}})
     r = client.put(f"/api/flows/{flow['id']}", json={"draft": draft})
     assert r.status_code == 422
     body = r.json()
@@ -192,3 +192,14 @@ def test_node_types_catalogue(client):
     assert types["click"]["disabled"] is True
     assert types["extract_list"]["disabled"] is False
     assert "properties" in types["extract_list"]["config_schema"]
+
+
+@pytest.mark.req("FR-02")
+def test_a_new_flow_is_empty_and_can_be_built_step_by_step(client):
+    flow = client.post("/api/flows", json={"name": "Empty"}).json()
+    draft = copy.deepcopy(flow["draft"])
+    draft["nodes"].append({"id": "t1", "type": "trigger", "config": {"mode": "manual"}})
+    saved = client.put(f"/api/flows/{flow['id']}", json={"draft": draft})
+    assert saved.status_code == 200 and len(saved.json()["draft"]["nodes"]) == 1  # half-built drafts save
+    issues = client.post(f"/api/flows/{flow['id']}/publish").json()["issues"]
+    assert any("exactly one Check Page" in i["message"] for i in issues)        # publish says what's missing
