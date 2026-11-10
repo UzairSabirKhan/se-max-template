@@ -376,7 +376,7 @@ class AgentDeps:
     tool_calls: int = 0
 
 model = FallbackModel(
-    settings.AI_MODEL,            # e.g. "google-gla:<gemini-flash-model>"
+    settings.AI_MODEL,            # e.g. "google:<gemini-flash-model>"
     settings.AI_FALLBACK_MODEL,   # e.g. "anthropic:claude-sonnet-5-5"
 )
 agent = Agent(model, deps_type=AgentDeps, instructions=SYSTEM_PROMPT, retries=2)
