@@ -163,3 +163,50 @@ def test_groq_key_is_read_from_the_environment(monkeypatch):
     monkeypatch.setenv("AI_MODEL", "groq:llama-x")
     monkeypatch.setenv("GROQ_API_KEY", "k3")
     assert isinstance(get_model(), GroqModel)
+
+
+@pytest.mark.req("FR-09")
+def test_a_second_key_is_tried_before_the_next_model():
+    cfg = AIConfig(model="google:gemini-x", fallback_model="groq:llama-x",
+                   google_api_key="k1", google_api_key_2="k1b", groq_api_key="k3")
+    model = get_model(cfg)
+    assert [type(m) for m in model.models] == [GoogleModel, GoogleModel, GroqModel]
+    assert [m._provider.client._api_client.api_key for m in model.models[:2]] == ["k1", "k1b"]
+
+
+@pytest.mark.req("FR-09")
+def test_second_keys_are_read_from_the_environment(monkeypatch):
+    for name in ("GOOGLE_API_KEY", "GOOGLE_API_KEY_2", "AI_FALLBACK_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("AI_MODEL", "google:gemini-x")
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    monkeypatch.setenv("GEMINI_API_KEY_2", "k1b")
+    model = get_model()
+    assert isinstance(model, FallbackModel) and len(model.models) == 2
+
+
+@pytest.mark.req("FR-09")
+def test_a_second_key_equal_to_the_first_is_ignored():
+    cfg = AIConfig(model="groq:llama-x", groq_api_key="k3", groq_api_key_2="k3")
+    assert isinstance(get_model(cfg), GroqModel)
+
+
+@pytest.mark.req("FR-09")
+async def test_a_key_out_of_quota_hands_over_to_the_next_key():
+    from pydantic_ai.exceptions import ModelHTTPError
+    from pydantic_ai.models.function import AgentInfo, FunctionModel
+
+    def out_of_quota(messages, info: AgentInfo):
+        raise ModelHTTPError(status_code=429, model_name="gemini-x", body={"error": "RESOURCE_EXHAUSTED"})
+
+    async def out_of_quota_stream(messages, info: AgentInfo):
+        raise ModelHTTPError(status_code=429, model_name="gemini-x", body={"error": "RESOURCE_EXHAUSTED"})
+        yield ""  # pragma: no cover
+
+    model = FallbackModel(FunctionModel(out_of_quota, stream_function=out_of_quota_stream), TestModel())
+    deps = AgentDeps.for_message("fl_1", DRAFT)
+    result = await _hello_agent().run("hi", deps=deps, model=model, usage_limits=usage_limits())
+    assert result.output
+    async with _hello_agent().run_stream("hi", deps=AgentDeps.for_message("fl_1", DRAFT), model=model,
+                                         usage_limits=usage_limits()) as stream:
+        assert await stream.get_output()

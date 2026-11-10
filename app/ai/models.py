@@ -8,6 +8,9 @@ Configuration (names in .env.example, values never committed):
     AI_FALLBACK_MODEL  one or more "<provider>:<model>", comma-separated, tried in order when the one
                        before fails, e.g. "groq:<llama-model>,anthropic:<claude-model>"
     GEMINI_API_KEY or GOOGLE_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY
+    GEMINI_API_KEY_2, GROQ_API_KEY_2, ANTHROPIC_API_KEY_2
+                       optional second key per provider (another account). The same model is tried with
+                       it when the first key fails, e.g. its free quota runs out, before the next model.
 
 Providers: google (Gemini), groq, anthropic (Claude). Any model whose key is missing is skipped, so
 setting only the keys you have is enough.
@@ -62,6 +65,9 @@ class AIConfig:
     google_api_key: str = ""
     anthropic_api_key: str = ""
     groq_api_key: str = ""
+    google_api_key_2: str = ""
+    anthropic_api_key_2: str = ""
+    groq_api_key_2: str = ""
 
     @property
     def specs(self) -> list[str]:
@@ -78,30 +84,46 @@ class AIConfig:
             google_api_key=(env("GOOGLE_API_KEY") or env("GEMINI_API_KEY") or "").strip(),
             anthropic_api_key=env("ANTHROPIC_API_KEY", "").strip(),
             groq_api_key=env("GROQ_API_KEY", "").strip(),
+            google_api_key_2=(env("GOOGLE_API_KEY_2") or env("GEMINI_API_KEY_2") or "").strip(),
+            anthropic_api_key_2=env("ANTHROPIC_API_KEY_2", "").strip(),
+            groq_api_key_2=env("GROQ_API_KEY_2", "").strip(),
         )
 
+    def keys(self, provider: str) -> list[str]:
+        """The provider's keys in the order they are tried: the main one, then the optional second one."""
+        pairs = {"google": (self.google_api_key, self.google_api_key_2),
+                 "anthropic": (self.anthropic_api_key, self.anthropic_api_key_2),
+                 "groq": (self.groq_api_key, self.groq_api_key_2)}[provider]
+        return list(dict.fromkeys(k for k in pairs if k))  # a second key equal to the first adds nothing
 
-def _build_one(spec: str, config: AIConfig) -> Model:
-    """Turn "<provider>:<model>" into a Model. Raises AIUnavailable with a reason the logs can show."""
+
+def _build_one(spec: str, config: AIConfig) -> list[Model]:
+    """Turn "<provider>:<model>" into one Model per API key, in the order the keys are tried.
+
+    Raises AIUnavailable with a reason the logs can show.
+    """
     provider, sep, name = spec.partition(":")
     if not sep or not name:
         raise AIUnavailable(f"{spec!r} is not in the form '<provider>:<model>'")
     if provider == "test":
-        return TestModel()
+        return [TestModel()]
     if provider in _GOOGLE_PREFIXES:
-        if not config.google_api_key:
+        keys = config.keys("google")
+        if not keys:
             raise AIUnavailable(f"{spec}: GEMINI_API_KEY (or GOOGLE_API_KEY) is not set")
-        return GoogleModel(name, provider=GoogleProvider(api_key=config.google_api_key))
+        return [GoogleModel(name, provider=GoogleProvider(api_key=k)) for k in keys]
     if provider == "anthropic":
-        if not config.anthropic_api_key:
+        keys = config.keys("anthropic")
+        if not keys:
             raise AIUnavailable(f"{spec}: ANTHROPIC_API_KEY is not set")
-        return AnthropicModel(name, provider=AnthropicProvider(api_key=config.anthropic_api_key))
+        return [AnthropicModel(name, provider=AnthropicProvider(api_key=k)) for k in keys]
     if provider == "groq":
-        if not config.groq_api_key:
+        keys = config.keys("groq")
+        if not keys:
             raise AIUnavailable(f"{spec}: GROQ_API_KEY is not set")
-        return GroqModel(name, provider=GroqProvider(api_key=config.groq_api_key))
+        return [GroqModel(name, provider=GroqProvider(api_key=k)) for k in keys]
     try:  # any other provider PydanticAI knows, using its own environment variables
-        return infer_model(spec)
+        return [infer_model(spec)]
     except (UserError, ImportError, ValueError) as exc:
         # ImportError: a provider whose package isn't installed (e.g. "openai:...") must mean
         # "assistant offline", never a crash, and must not stop the next model from being tried.
@@ -110,6 +132,7 @@ def _build_one(spec: str, config: AIConfig) -> Model:
 
 def get_model(config: AIConfig | None = None) -> Model:
     """The model the agent uses: AI_MODEL, then each AI_FALLBACK_MODEL entry in turn when one fails.
+    A provider with a second key is tried with it before moving to the next model.
 
     A model that can't be built (missing key, bad name) is skipped with a log line. If neither can be
     built, raises AIUnavailable: the sidebar shows "assistant offline" and published flows keep running.
@@ -119,7 +142,7 @@ def get_model(config: AIConfig | None = None) -> Model:
     reasons: list[str] = []
     for spec in config.specs:
         try:
-            built.append(_build_one(spec, config))
+            built.extend(_build_one(spec, config))
         except AIUnavailable as exc:
             reasons.append(str(exc))
             log.warning("AI model skipped: %s", exc)

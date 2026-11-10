@@ -98,6 +98,7 @@ Copy `.env.example` to `.env` and fill in what you need. Names only, never commi
 | `DATABASE_URL` | Postgres. Leave empty locally to use a SQLite file; required on Railway and Render |
 | `AI_MODEL`, `AI_FALLBACK_MODEL` | The assistant's models, e.g. `google:<gemini-model>`; the fallback may list several, comma-separated, such as `groq:<model>,anthropic:<claude-model>` |
 | `GEMINI_API_KEY`, `GROQ_API_KEY`, `ANTHROPIC_API_KEY` | Keys for the models above. Without any, the assistant shows "offline" and everything else works |
+| `GEMINI_API_KEY_2`, `GROQ_API_KEY_2`, `ANTHROPIC_API_KEY_2` | Optional second key per provider. When the first key fails (for example its quota runs out), the same model is tried with the second key before the next model |
 | `PUBLIC_BASE_URL` | The app's public URL (for mock shop links) |
 
 ### Run
