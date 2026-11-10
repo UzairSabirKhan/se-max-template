@@ -14,7 +14,7 @@ The user is a small seller or shopper who wants to know when competitors' prices
 
 ## Live deployment
 
-- **URL:** pending. The Railway deploy builds, but the service needs its Postgres `DATABASE_URL` set before it starts (see [Deploy](#deploy)).
+- **URL:** https://scrapeonce-production-839d.up.railway.app (health check: [/health](https://scrapeonce-production-839d.up.railway.app/health))
 - **Platform:** Railway (primary), Render (backup). One Docker image serves the editor, the API and the mock shop.
 
 ## Judge quick start (under 5 minutes)
