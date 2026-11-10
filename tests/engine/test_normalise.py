@@ -18,7 +18,8 @@ def test_price(raw, expected):
 
 
 @pytest.mark.req("FR-21")
-@pytest.mark.parametrize("raw", ["", "   ", "N/A", "-", "—", None, "Free", "Call for price", "Out of stock", "Sold out"])
+@pytest.mark.parametrize("raw", ["", "   ", "N/A", "-", "—", None, "Free", "Call for price", "Out of stock",
+                                 "Sold out"])
 def test_price_text(raw):
     assert parse_price(raw).status == "empty" and parse_price(raw).value is None
 

@@ -189,3 +189,10 @@ async def pdf() -> Response:
 @router.get("/redirect-internal")
 async def redirect_internal() -> Response:
     return RedirectResponse(METADATA_URL, status_code=302)
+
+
+# Must stay LAST in this router: any other /shop/... path is a real 404. Without it the React app's
+# catch-all would answer 200, and a flow pointed at a mistyped shop URL would get a page, not an error.
+@router.api_route("/{rest:path}", methods=["GET", "POST"])
+async def shop_not_found(rest: str) -> Response:
+    return _not_found()

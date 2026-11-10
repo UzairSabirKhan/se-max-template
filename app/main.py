@@ -20,8 +20,8 @@ from app.api.agent import router as agent_router
 from app.api.errors import ApiError, install_error_handlers
 from app.api.limits import BodySizeLimit
 from app.api.routes import router as api_router
-from app.mockshop.routes import router as shop_router
 from app.db.session import Database, resolve_database_url
+from app.mockshop.routes import router as shop_router
 from app.settings import settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
