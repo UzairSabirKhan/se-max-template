@@ -501,8 +501,9 @@ async def test_add_steps_checks_refs_parents_and_unlinks():
         await tools.add_steps(ctx, [LIST_FLOW_STEPS[0]], [tools.LinkSpec(source="fetch", target="ghost")])
     with pytest.raises(ModelRetry, match="not a Loop"):
         await tools.add_steps(ctx, [tools.StepSpec(ref="x", type="wait", config={}, parent="n_chk001")])
-    with pytest.raises(ModelRetry, match="no link"):
-        await tools.add_steps(ctx, [], unlink=[tools.LinkSpec(source="n_chk001", target="n_trig01")])
+    # Unlinking a link that isn't there is harmless (it's already the state wanted): skipped, not refused.
+    result = await tools.add_steps(ctx, [], unlink=[tools.LinkSpec(source="n_chk001", target="n_trig01")])
+    assert result["unlinked"] == 0 and "no link" in result["skipped"][0]
     with pytest.raises(ModelRetry, match="already step ids"):
         await tools.add_steps(ctx, [tools.StepSpec(ref="n_chk001", type="wait", config={})])
 

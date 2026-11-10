@@ -10,7 +10,7 @@ from pydantic_ai.models.groq import GroqModel
 from pydantic_ai.models.test import TestModel
 
 from app.ai.models import (
-    MAX_TOOL_CALLS,
+    MAX_MODEL_REQUESTS,
     MODEL_SETTINGS,
     AgentDeps,
     AIConfig,
@@ -108,13 +108,26 @@ def test_config_reads_environment(monkeypatch):
 
 
 @pytest.mark.req("FR-07")
-async def test_usage_limits_stop_more_than_eight_tool_calls():
+async def test_many_tool_calls_in_one_message_are_allowed():
     agent = Agent(deps_type=AgentDeps, output_type=str)
-    for i in range(MAX_TOOL_CALLS + 1):
+    for i in range(30):
         agent.tool_plain(name=f"tool_{i}")(lambda: "ok")
+    result = await agent.run("go", deps=AgentDeps.for_message("fl_1", DRAFT), model=TestModel(),
+                             usage_limits=usage_limits())
+    assert result.output
 
+
+@pytest.mark.req("FR-07")
+async def test_an_endless_loop_is_still_stopped():
+    from pydantic_ai.messages import ModelResponse, ToolCallPart
+    from pydantic_ai.models.function import FunctionModel
+
+    agent = Agent(deps_type=AgentDeps, output_type=str)
+    agent.tool_plain(name="again")(lambda: "ok")
+    loop = FunctionModel(lambda messages, info: ModelResponse(parts=[ToolCallPart("again", {})]))
     with pytest.raises(UsageLimitExceeded):
-        await agent.run("go", deps=AgentDeps.for_message("fl_1", DRAFT), model=TestModel(), usage_limits=usage_limits())
+        await agent.run("go", deps=AgentDeps.for_message("fl_1", DRAFT), model=loop, usage_limits=usage_limits())
+    assert usage_limits().request_limit == MAX_MODEL_REQUESTS
 
 
 @pytest.mark.req("FR-10")

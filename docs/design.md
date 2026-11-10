@@ -51,7 +51,7 @@ Related documents:
 | Agent sidebar | Chat with the agent about the open flow; shows its edits as pending changes the user accepts or rejects | @microsoft/fetch-event-source (SSE over POST) |
 | API | REST for CRUD; SSE for agent chat and live run progress; serves the React build and the mock shop | FastAPI, sse-starlette |
 | Flow schema | Each node type is a Pydantic model (discriminated union on `type`, `extra="forbid"`); validates every agent edit, save and publish | Pydantic v2 |
-| Agent | Tool-calling loop over a copy of the draft (at most 12 tool calls per message); Gemini primary, Claude fallback | **PydanticAI** (`Agent`, `FallbackModel`, typed tools) in `app/ai/`; `AI_MODEL`, `AI_FALLBACK_MODEL` |
+| Agent | Tool-calling loop over a copy of the draft (no tool-call cap; a 60-request guard stops an endless loop); Gemini primary, Claude fallback | **PydanticAI** (`Agent`, `FallbackModel`, typed tools) in `app/ai/`; `AI_MODEL`, `AI_FALLBACK_MODEL` |
 | Engine | Runs a flow through the graph in dependency order; pure functions except `safe_fetch` | `app/engine/` (httpx, selectolax) |
 | Fetcher | `safe_fetch()`: http/https only, IPs checked after DNS lookup and after every redirect (at most 3), timeouts, 2 MB cap | httpx (async) |
 | Classifier | One verdict per run (BLOCKED, UNSUPPORTED, BROKEN, SUSPECT, CHANGED, OK, UNKNOWN) | `app/engine/classify.py` (pure function) |
@@ -401,7 +401,7 @@ async def add_node(ctx: RunContext[AgentDeps], type: NodeType, config: dict,
 | `FallbackModel` | Gemini first; if it errors or hits its rate limit, the same request goes to Claude. Replaces a hand-written adapter |
 | `ModelRetry` | When an edit fails `validate_flow`, the issues go back to the model so it can correct itself, at most `retries=2` times. Every retry is logged and counted as "AI mistake caught by validation" (testing.md metric) |
 | `agent.iter()` | We walk the run node by node and turn model text, tool calls and tool results into our C5 events (`text`, `tool_call`, `flow_ops`, `dry_run_result`) |
-| `UsageLimits` + `deps.tool_calls` counter | Hard cap of 12 tool calls and a request cap per message; token usage is read from the run's usage for the "tokens used at setup" counter |
+| `UsageLimits` + `deps.tool_calls` counter | No tool-call cap; a 60-request guard per message against an endless loop; token usage is read from the run's usage for the "tokens used at setup" counter |
 | Exceptions (`ModelHTTPError`, `UnexpectedModelBehavior`, `UsageLimitExceeded`) | Mapped to C5 errors `ai_unavailable`, `invalid_ai_reply`, `tool_failed`; the draft is never changed by a failed run |
 | `TestModel`, `FunctionModel`, `agent.override(model=...)` | Contract tests script exact model replies (valid, malformed, extra keys, hostile instructions) with no API key |
 | `models.ALLOW_MODEL_REQUESTS = False` | Set in the test config so CI can never make a real model call by accident |
