@@ -17,6 +17,27 @@ The user is a small seller or shopper who wants to know when competitors' prices
 - **URL:** https://scrapeonce-production-839d.up.railway.app (health check: [/health](https://scrapeonce-production-839d.up.railway.app/health))
 - **Platform:** Railway (primary), Render (backup). One Docker image serves the editor, the API and the mock shop.
 
+## How it works
+
+```
+ You describe a goal ──▶ AI assistant proposes steps ──▶ you review, Accept, Publish
+                                                              │
+        schedule or "Run now"  ──▶  engine (no AI)  ──▶  safe_fetch  ──▶  web page
+                                         │
+   Check page verdict ──▶ Save records (new / changed / removed) ──▶ conditions ──▶ alerts
+```
+
+- **AI builds, code runs.** The assistant only edits a draft through typed tools; every edit is validated and shown for you to accept. It cannot publish, run or delete. Published runs never call AI (`ai_calls: 0` on every run, proven by a test).
+- **Every run gets one verdict**, checked in this order: **Blocked** (error page, captcha) → **Unsupported** (needs JavaScript) → **Broken** (layout changed: fields missing, wrong item count, duplicates) → **Suspect** (a price moved more than 50%) → **Changed** / **OK**. A captcha page can never look like "all products removed", and a broken layout never stores empty prices.
+- **Steps:** Schedule, Fetch page, Paginate, Extract list, Loop (open each item's page), Condition, Wait, Check page, Save records, Alert, Results. Variables hold a list of links to watch. Each step's settings show the data available from earlier steps.
+
+## Safety
+
+- **No internal requests:** http/https only; private, loopback and cloud-metadata addresses refused in any spelling, after DNS and on every redirect; the connection is pinned to the checked IP.
+- **Bounded:** 15 s per page, 2 MB (after decompression), HTML only, 2 s between requests to a site, 120 s per run, loops of at most 25 items.
+- **Flows are data, not code:** strict schema, fixed operators, no scripts, no regex, no templates; page text is treated as untrusted by the assistant.
+- **Honest scraping:** a clear User-Agent, no CAPTCHA solving or proxies; during the event we only scrape our own demo shop with invented products.
+
 ## Judge quick start (under 5 minutes)
 
 1. Open the live URL. The flow list asks **"What should we watch for you?"**
@@ -106,11 +127,21 @@ The `Dockerfile` builds the editor and runs FastAPI with one worker (the schedul
 
 The app refuses to start on a host without `DATABASE_URL`, because the host's disk is wiped on every deploy and saved flows would be lost.
 
+## Quality
+
+- **451 automated tests** (`bash scripts/test.sh`), run by GitHub Actions on every push. They cover the judges' checks: internal URLs refused, no AI during runs, a layout change raising "Site changed" with nothing stored, the same page giving the same output 20 times, and bad input (huge or slow pages, malformed AI replies) handled without crashing.
+- Every defect we found, including the AI's own mistakes, is in [docs/testing.md](docs/testing.md); how AI was used is in [docs/ai-usage-log.md](docs/ai-usage-log.md).
+
+## Related work
+
+Generating a scraper once and running it without AI is not new: **Crawlr** and **harvest-agent** (as noted by the committee) generate selectors once, **Crawl4AI** does it as a library, and **Parsera** and **Kadoa** offer it as paid services. Those repair scrapers automatically and leave failures unexplained; change monitors such as Visualping and Distill are known for false alerts.
+
+ScrapeOnce's difference: a **no-code editor and assistant for non-developers**, **every change approved by the user** after a validated test run, and **every run explained** by one verdict with evidence.
+
 ## Known limitations
 
 - Static HTML only. Pages that build themselves with JavaScript are reported as **Unsupported**, not scraped.
 - The assistant is checked by tests with scripted model replies. A recorded real-model reply is still to be added (`uv run pytest -m live -k capture`, with AI keys).
-- Flow variables are checked when saved but not yet filled in at run time (FR-23), so the link-list flow is the last piece to land.
 - No sign-in: anyone with the URL can see and edit every flow. Fine for a judged demo, not for real users.
 - The assistant's rate limit (10 messages a minute per client) is kept in memory, so it resets when the app restarts.
 
