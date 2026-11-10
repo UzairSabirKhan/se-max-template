@@ -16,7 +16,7 @@ dependencies = [
     "jinja2>=3.1",
     "tzdata>=2024.1",
     "aiosqlite>=0.22.1",
-    "pydantic-ai-slim[anthropic,google]>=2.66.0",
+    "pydantic-ai-slim[anthropic,google,groq]>=2.66.0",
 ]
 
 [dependency-groups]

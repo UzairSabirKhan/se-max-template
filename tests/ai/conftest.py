@@ -5,7 +5,7 @@ from pydantic_ai import models
 
 models.ALLOW_MODEL_REQUESTS = False
 
-AI_ENV = ("AI_MODEL", "AI_FALLBACK_MODEL", "GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY")
+AI_ENV = ("AI_MODEL", "AI_FALLBACK_MODEL", "GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY", "GROQ_API_KEY")
 
 
 @pytest.fixture(autouse=True)

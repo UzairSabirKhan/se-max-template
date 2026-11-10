@@ -5,8 +5,12 @@ never imports app/ai.
 
 Configuration (names in .env.example, values never committed):
     AI_MODEL           "<provider>:<model>", e.g. "google:<gemini-model>" (tried first)
-    AI_FALLBACK_MODEL  "<provider>:<model>", e.g. "anthropic:<claude-model>" (tried when the first fails)
-    GEMINI_API_KEY or GOOGLE_API_KEY, ANTHROPIC_API_KEY
+    AI_FALLBACK_MODEL  one or more "<provider>:<model>", comma-separated, tried in order when the one
+                       before fails, e.g. "groq:<llama-model>,anthropic:<claude-model>"
+    GEMINI_API_KEY or GOOGLE_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY
+
+Providers: google (Gemini), groq, anthropic (Claude). Any model whose key is missing is skipped, so
+setting only the keys you have is enough.
 """
 
 from __future__ import annotations
@@ -24,9 +28,11 @@ from pydantic_ai.models import Model, infer_model
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.models.groq import GroqModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.google import GoogleProvider
+from pydantic_ai.providers.groq import GroqProvider
 from pydantic_ai.settings import ModelSettings
 
 log = logging.getLogger(__name__)
@@ -55,6 +61,13 @@ class AIConfig:
     fallback_model: str = ""
     google_api_key: str = ""
     anthropic_api_key: str = ""
+    groq_api_key: str = ""
+
+    @property
+    def specs(self) -> list[str]:
+        """AI_MODEL, then each AI_FALLBACK_MODEL entry, in the order they are tried."""
+        fallbacks = [s.strip() for s in self.fallback_model.split(",")]
+        return [s for s in (self.model.strip(), *fallbacks) if s]
 
     @classmethod
     def from_env(cls) -> AIConfig:
@@ -64,6 +77,7 @@ class AIConfig:
             fallback_model=env("AI_FALLBACK_MODEL", "").strip(),
             google_api_key=(env("GOOGLE_API_KEY") or env("GEMINI_API_KEY") or "").strip(),
             anthropic_api_key=env("ANTHROPIC_API_KEY", "").strip(),
+            groq_api_key=env("GROQ_API_KEY", "").strip(),
         )
 
 
@@ -82,14 +96,20 @@ def _build_one(spec: str, config: AIConfig) -> Model:
         if not config.anthropic_api_key:
             raise AIUnavailable(f"{spec}: ANTHROPIC_API_KEY is not set")
         return AnthropicModel(name, provider=AnthropicProvider(api_key=config.anthropic_api_key))
+    if provider == "groq":
+        if not config.groq_api_key:
+            raise AIUnavailable(f"{spec}: GROQ_API_KEY is not set")
+        return GroqModel(name, provider=GroqProvider(api_key=config.groq_api_key))
     try:  # any other provider PydanticAI knows, using its own environment variables
         return infer_model(spec)
-    except UserError as exc:
+    except (UserError, ImportError, ValueError) as exc:
+        # ImportError: a provider whose package isn't installed (e.g. "openai:...") must mean
+        # "assistant offline", never a crash, and must not stop the next model from being tried.
         raise AIUnavailable(f"{spec}: {exc}") from exc
 
 
 def get_model(config: AIConfig | None = None) -> Model:
-    """The model the agent uses: AI_MODEL, falling back to AI_FALLBACK_MODEL when it fails.
+    """The model the agent uses: AI_MODEL, then each AI_FALLBACK_MODEL entry in turn when one fails.
 
     A model that can't be built (missing key, bad name) is skipped with a log line. If neither can be
     built, raises AIUnavailable: the sidebar shows "assistant offline" and published flows keep running.
@@ -97,9 +117,7 @@ def get_model(config: AIConfig | None = None) -> Model:
     config = config or AIConfig.from_env()
     built: list[Model] = []
     reasons: list[str] = []
-    for spec in (config.model, config.fallback_model):
-        if not spec:
-            continue
+    for spec in config.specs:
         try:
             built.append(_build_one(spec, config))
         except AIUnavailable as exc:

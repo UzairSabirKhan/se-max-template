@@ -6,6 +6,7 @@ from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.models.groq import GroqModel
 from pydantic_ai.models.test import TestModel
 
 from app.ai.models import (
@@ -48,6 +49,7 @@ async def test_hello_world_agent_answers_through_test_model():
     assert deps.tool_calls == 1  # TestModel calls every tool once
 
 
+@pytest.mark.req("FR-06")
 def test_tools_edit_a_copy_never_the_callers_draft():
     deps = AgentDeps.for_message("fl_1", DRAFT, selected_node_ids=["n_trig01"])
     deps.draft["nodes"].append({"id": "n_x", "type": "wait"})
@@ -79,20 +81,24 @@ def test_primary_then_fallback_builds_a_fallback_model():
     assert [type(m) for m in model.models] == [GoogleModel, AnthropicModel]
 
 
+@pytest.mark.req("FR-09")
 def test_old_google_gla_prefix_still_works():
     assert isinstance(get_model(AIConfig(model="google-gla:gemini-x", google_api_key="k1")), GoogleModel)
 
 
+@pytest.mark.req("FR-09")
 def test_a_model_without_its_key_is_skipped_and_the_other_used():
     cfg = AIConfig(model="google:gemini-x", fallback_model="anthropic:claude-x", anthropic_api_key="k2")
     assert isinstance(get_model(cfg), AnthropicModel)
 
 
+@pytest.mark.req("FR-10")
 def test_bad_spec_is_reported():
     with pytest.raises(AIUnavailable, match="provider"):
         get_model(AIConfig(model="no-colon-here"))
 
 
+@pytest.mark.req("FR-09")
 def test_config_reads_environment(monkeypatch):
     monkeypatch.setenv("AI_MODEL", "google:gemini-x")
     monkeypatch.setenv("AI_FALLBACK_MODEL", "anthropic:claude-x")
@@ -111,7 +117,49 @@ async def test_usage_limits_stop_more_than_eight_tool_calls():
         await agent.run("go", deps=AgentDeps.for_message("fl_1", DRAFT), model=TestModel(), usage_limits=usage_limits())
 
 
+@pytest.mark.req("FR-10")
 async def test_real_model_requests_are_blocked_in_tests():
     cfg = AIConfig(model="anthropic:claude-x", anthropic_api_key="k2")
     with pytest.raises(RuntimeError, match="ALLOW_MODEL_REQUESTS"):
         await Agent(get_model(cfg)).run("hi")
+
+
+@pytest.mark.req("FR-09")
+def test_groq_is_supported_with_its_own_key():
+    assert isinstance(get_model(AIConfig(model="groq:llama-x", groq_api_key="k3")), GroqModel)
+    with pytest.raises(AIUnavailable, match="GROQ_API_KEY"):
+        get_model(AIConfig(model="groq:llama-x"))
+
+
+@pytest.mark.req("FR-09")
+def test_fallback_chain_tries_each_model_in_order():
+    cfg = AIConfig(model="google:gemini-x", fallback_model="groq:llama-x, anthropic:claude-x",
+                   google_api_key="k1", groq_api_key="k3", anthropic_api_key="k2")
+    model = get_model(cfg)
+    assert [type(m) for m in model.models] == [GoogleModel, GroqModel, AnthropicModel]
+
+
+@pytest.mark.req("FR-09")
+def test_only_the_models_with_keys_are_used():
+    cfg = AIConfig(model="google:gemini-x", fallback_model="groq:llama-x,anthropic:claude-x", groq_api_key="k3")
+    assert isinstance(get_model(cfg), GroqModel)
+
+
+@pytest.mark.req("FR-10")
+@pytest.mark.parametrize("spec", ["openai:gpt-x", "groq-typo:llama-x", "nonsense:model"])
+def test_uninstalled_or_unknown_provider_is_offline_not_a_crash(spec):
+    with pytest.raises(AIUnavailable):
+        get_model(AIConfig(model=spec))
+
+
+@pytest.mark.req("FR-10")
+def test_a_broken_first_model_does_not_stop_the_fallback():
+    cfg = AIConfig(model="openai:gpt-x", fallback_model="groq:llama-x", groq_api_key="k3")
+    assert isinstance(get_model(cfg), GroqModel)
+
+
+@pytest.mark.req("FR-09")
+def test_groq_key_is_read_from_the_environment(monkeypatch):
+    monkeypatch.setenv("AI_MODEL", "groq:llama-x")
+    monkeypatch.setenv("GROQ_API_KEY", "k3")
+    assert isinstance(get_model(), GroqModel)
