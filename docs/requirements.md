@@ -31,11 +31,11 @@ Status: `Planned`, then `In progress`, then `Done` (with a test passing in CI), 
 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
-| FR-01 | Create, list, open, rename and delete flows. The flow list shows status (draft / published / paused) and unread alert count | Must | Planned |
+| FR-01 | Create, list, open, rename and delete flows. The flow list shows status (draft / published / paused) and unread alert count | Must | Done |
 | FR-02 | Canvas editor (React Flow): drag nodes from a palette, connect them, and edit each node's settings in a side panel | Must | Planned |
-| FR-03 | Every save, agent edit and publish validates the flow against the schema: fixed node types, unknown keys rejected, selectors of 200 characters or fewer that parse, fixed field types and condition operators, no code and no regex. An invalid flow gets a clear message and is never saved | Must | Planned |
-| FR-04 | Graph rules are enforced: no cycles (DAG); at most 30 nodes; exactly one trigger; a source → `check_page` spine; condition edges use `true`/`false`; loop body rules (see FR-22) | Must | Planned |
-| FR-05 | Saving a draft checks `draft_version`. A stale save returns 409 with a "reload" message instead of overwriting | Should | Planned |
+| FR-03 | Every save, agent edit and publish validates the flow against the schema: fixed node types, unknown keys rejected, selectors of 200 characters or fewer that parse, fixed field types and condition operators, no code and no regex. An invalid flow gets a clear message and is never saved | Must | Done |
+| FR-04 | Graph rules are enforced: no cycles (DAG); at most 30 nodes; exactly one trigger; a source → `check_page` spine; condition edges use `true`/`false`; loop body rules (see FR-22) | Must | Done |
+| FR-05 | Saving a draft checks `draft_version`. A stale save returns 409 with a "reload" message instead of overwriting | Should | Done |
 
 ### Sidebar agent (design time only)
 
@@ -63,15 +63,15 @@ Status: `Planned`, then `In progress`, then `Done` (with a test passing in CI), 
 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
-| FR-18 | `safe_fetch` is used for **every** outbound request: http/https only; the host is resolved and any IP that is not global is refused (private, loopback, link-local, metadata, IPv6 local); the check runs again on every redirect (at most 3); 5 s connect and 15 s total timeouts; 2 MB cap on the decompressed body; HTML content types only | Must | Planned |
-| FR-19 | Fetches are limited to `ALLOWED_DOMAINS` (default: the app's own host, so only the mock shop during the event) | Should | Planned |
+| FR-18 | `safe_fetch` is used for **every** outbound request: http/https only; the host is resolved and any IP that is not global is refused (private, loopback, link-local, metadata, IPv6 local); the check runs again on every redirect (at most 3); 5 s connect and 15 s total timeouts; 2 MB cap on the decompressed body; HTML content types only | Must | Done |
+| FR-19 | Fetches are limited to `ALLOWED_DOMAINS` (default: the app's own host, so only the mock shop during the event) | Should | Done |
 | FR-20 | Static HTML only. A page that is a JavaScript app shell gets the UNSUPPORTED verdict with "This page loads its data with JavaScript, which ScrapeOnce does not support." | Must | Planned |
-| FR-21 | `extract_list` (base selector + fields + identity key) and `extract_fields` (one page = one item), with tested normalisers for text, price, int, url, date and stock | Must | Planned |
+| FR-21 | `extract_list` (base selector + fields + identity key) and `extract_fields` (one page = one item), with tested normalisers for text, price, int, url, date and stock | Must | In progress (normalisers done; extraction is A12) |
 | FR-22 | `for_each` loops over items or a list variable: at most 25 items, one at a time, no nesting, body limited to `fetch_item_page`, `extract_fields`, `condition` and `wait`, `on_error` = skip or stop | Should | Planned |
 | FR-23 | Typed flow variables (`text`, `number`, `price`, `boolean`, `url`, `url_list`, `text_list`) referenced as `{"var": name}` only in fixed places, type-checked on save | Should | Planned |
 | FR-24 | `condition` routes each item to `true` / `false` using fixed operators per field type (`lt`, `gt`, `contains`, `is_new`, `changed`, `drop_pct_gt`, `back_in_stock`, …) | Must | Planned |
 | FR-25 | `paginate` follows a "next" link, at most 5 pages | Should | Planned |
-| FR-26 | Waits: `wait` node (1–10 s); a rate limit of 2 s per domain; 2 retries with backoff on 429/5xx/timeout (`Retry-After` honoured up to 10 s); a 120 s run deadline | Must | Planned |
+| FR-26 | Waits: `wait` node (1–10 s); a rate limit of 2 s per domain; 2 retries with backoff on 429/5xx/timeout (`Retry-After` honoured up to 10 s); a 120 s run deadline | Must | In progress (fetch timeouts, retries, per-host throttle done; run deadline and wait node are A13) |
 | FR-27 | Browser nodes (click, scroll, type, wait for element) appear in the palette as disabled ("needs browser, coming soon") and are rejected at publish | Should | Planned |
 
 ### Change detection, records and alerts
@@ -91,7 +91,7 @@ Status: `Planned`, then `In progress`, then `Done` (with a test passing in CI), 
 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
-| FR-36 | Our own mock shop at `/shop` with invented data: list page v1 (12 products, 2 pages), layout v2 (price class renamed), a blocked page (captcha text, status 200), a JavaScript shell, a duplicate-SKU page, product detail pages, an admin action to change a price or remove a product, and robustness pages for the judges (`/shop/huge` over 2 MB, `/shop/slow` slow drip, `/shop/file.pdf`, `/shop/redirect-internal` redirecting to `169.254.169.254`) | Must | Planned |
+| FR-36 | Our own mock shop at `/shop` with invented data: list page v1 (12 products, 2 pages), layout v2 (price class renamed), a blocked page (captcha text, status 200), a JavaScript shell, a duplicate-SKU page, product detail pages, an admin action to change a price or remove a product, and robustness pages for the judges (`/shop/huge` over 2 MB, `/shop/slow` slow drip, `/shop/file.pdf`, `/shop/redirect-internal` redirecting to `169.254.169.254`) | Must | Done |
 
 ### Cut list (only if the core is done)
 
