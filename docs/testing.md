@@ -1,6 +1,6 @@
 # Testing
 
-> **Honesty rule:** every number in this file comes from a real run. Cells that haven't been run yet say `Pending`. Test types are labelled: **unit**, **contract** (recorded AI reply), **integration** (API with mocked network), **live** (real AI or the deployed URL), **manual**.
+> **Honesty rule:** every number in this file comes from a real run. Cells that haven't been run yet say `Pending`. Test types are labelled: **unit**, **contract** (scripted AI replies via PydanticAI `TestModel`/`FunctionModel`), **integration** (API with mocked network), **live** (real AI or the deployed URL), **manual**.
 
 ## Test strategy
 
@@ -11,7 +11,7 @@ We test the **generic engine**, not individual websites. Most of the logic is pu
 | Unit | Normalisers, flow schema and graph rules, condition operators, variables, classifier, `save_records` diff, alert de-duplication | pytest, pure functions | — |
 | Unit (security) | `safe_fetch`: URL and IP rules, redirects, size, timeouts, content type | `respx` / `httpx.MockTransport`; **DNS is mocked**; we never probe real internal addresses | — |
 | Integration | API routes: CRUD, dry run, publish, run now, alerts; the full flow on saved mock-shop HTML | FastAPI `TestClient`; mock-shop pages served through a mock transport (the URL guard would correctly block `localhost`) | — |
-| Contract | The agent loop handles a **recorded** AI reply, a truncated reply and an extra-key reply | Recorded fixture made during the build, labelled as such | `contract` |
+| Contract | The agent handles valid, malformed, truncated, extra-key and hostile model replies; invalid edits trigger `ModelRetry` and never reach the draft | PydanticAI `FunctionModel` scripts exact replies (including one captured from a real call during the build, labelled as such); `agent.override(model=...)`; `ALLOW_MODEL_REQUESTS = False` so CI never calls a real model | `contract` |
 | Zero-AI | Runs never call AI | `app.ai` blocked in `sys.modules` + client patched to raise + import scan of `app/engine` | — |
 | Live | One real agent call; smoke test of the deployed URL | Run on demand only, never in CI | `live` |
 | Manual / E2E | Red-team checklist and the judge checks on the deployed URL | Checklist below, results recorded with time and commit | — |
@@ -25,7 +25,7 @@ We test the **generic engine**, not individual websites. Most of the logic is pu
 ```
 bash scripts/test.sh                 # what CI runs: lint + all tests except live
 uv run pytest -m "not live"          # same, without lint
-uv run pytest -m contract            # recorded AI reply tests only
+uv run pytest -m contract            # scripted AI reply tests only (no API key needed)
 uv run pytest -m live                # real AI + deployed URL (needs .env)
 uv run python scripts/trace_table.py # rebuild the traceability table
 ```

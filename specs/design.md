@@ -51,7 +51,7 @@ Related documents:
 | Agent sidebar | Chat with the agent about the open flow; shows its edits as pending changes the user accepts or rejects | @microsoft/fetch-event-source (SSE over POST) |
 | API | REST for CRUD; SSE for agent chat and live run progress; serves the React build and the mock shop | FastAPI, sse-starlette |
 | Flow schema | Each node type is a Pydantic model (discriminated union on `type`, `extra="forbid"`); validates every agent edit, save and publish | Pydantic v2 |
-| Agent | Tool-calling loop over a copy of the draft (at most 8 tool calls per message) | `app/ai/` adapter; `AI_PROVIDER=gemini\|claude` |
+| Agent | Tool-calling loop over a copy of the draft (at most 8 tool calls per message); Gemini primary, Claude fallback | **PydanticAI** (`Agent`, `FallbackModel`, typed tools) in `app/ai/`; `AI_MODEL`, `AI_FALLBACK_MODEL` |
 | Engine | Runs a flow through the graph in dependency order; pure functions except `safe_fetch` | `app/engine/` (httpx, selectolax) |
 | Fetcher | `safe_fetch()`: http/https only, IPs checked after DNS lookup and after every redirect (at most 3), timeouts, 2 MB cap | httpx (async) |
 | Classifier | One verdict per run (BLOCKED, UNSUPPORTED, BROKEN, SUSPECT, CHANGED, OK, UNKNOWN) | `app/engine/classify.py` (pure function) |
@@ -357,6 +357,52 @@ There's no auth for the hackathon build (see Known limits).
 
 The agent controls the schedule by editing the Trigger node. It has **no** tool to publish, run, delete or execute code. When the agent says a flow is ready, the sidebar shows a **Publish** button for the user to click.
 
+### Agent implementation (PydanticAI)
+
+The agent is built with [PydanticAI](https://ai.pydantic.dev/) inside the FastAPI service. Libraries in `app/ai/`: `pydantic-ai-slim[google,anthropic]`.
+
+```python
+# app/ai/agent.py (shape, not final code)
+@dataclass
+class AgentDeps:
+    flow_id: str
+    draft: dict                  # server-side COPY of the user's draft; tools edit this
+    selected: list[str]
+    emit: Callable[[str, dict], Awaitable[None]]   # pushes SSE events (C5)
+    tool_calls: int = 0
+
+model = FallbackModel(
+    settings.AI_MODEL,            # e.g. "google-gla:<gemini-flash-model>"
+    settings.AI_FALLBACK_MODEL,   # e.g. "anthropic:claude-sonnet-5-5"
+)
+agent = Agent(model, deps_type=AgentDeps, instructions=SYSTEM_PROMPT, retries=2)
+
+@agent.tool
+async def add_node(ctx: RunContext[AgentDeps], type: NodeType, config: dict,
+                   parent_id: str | None = None) -> str:
+    op = build_add_node(ctx.deps.draft, type, config, parent_id)
+    issues = engine_api.validate_flow(apply(ctx.deps.draft, op))
+    if issues:
+        raise ModelRetry(f"Invalid: {issues}")     # the model may fix it; bounded by retries
+    ctx.deps.draft = apply(ctx.deps.draft, op)
+    await ctx.deps.emit("flow_ops", {"ops": [op]})
+    return "added"
+```
+
+| PydanticAI feature | How we use it |
+|---|---|
+| `Agent` + `@agent.tool` with typed arguments | Each tool in the table above is one typed function. PydanticAI builds the JSON Schema the model sees and validates the model's arguments before our code runs |
+| `RunContext[AgentDeps]` | Tools get the draft copy, the flow id and the SSE emitter. No globals, so two users can't see each other's drafts |
+| `FallbackModel` | Gemini first; if it errors or hits its rate limit, the same request goes to Claude. Replaces a hand-written adapter |
+| `ModelRetry` | When an edit fails `validate_flow`, the issues go back to the model so it can correct itself, at most `retries=2` times. Every retry is logged and counted as "AI mistake caught by validation" (testing.md metric) |
+| `agent.iter()` | We walk the run node by node and turn model text, tool calls and tool results into our C5 events (`text`, `tool_call`, `flow_ops`, `dry_run_result`) |
+| `UsageLimits` + `deps.tool_calls` counter | Hard cap of 8 tool calls and a request cap per message; token usage is read from the run's usage for the "tokens used at setup" counter |
+| Exceptions (`ModelHTTPError`, `UnexpectedModelBehavior`, `UsageLimitExceeded`) | Mapped to C5 errors `ai_unavailable`, `invalid_ai_reply`, `tool_failed`; the draft is never changed by a failed run |
+| `TestModel`, `FunctionModel`, `agent.override(model=...)` | Contract tests script exact model replies (valid, malformed, extra keys, hostile instructions) with no API key |
+| `models.ALLOW_MODEL_REQUESTS = False` | Set in the test config so CI can never make a real model call by accident |
+
+What PydanticAI is **not** used for: fetching pages (always our `safe_fetch`), saving or publishing flows, or anything in `app/engine/`. Check these API names against the PydanticAI docs at the start of the build; the library moves quickly.
+
 ## Key decisions and tradeoffs
 
 | Decision | Options considered | Chosen | Why | Tradeoff accepted |
@@ -371,7 +417,8 @@ The agent controls the schedule by editing the Trigger node. It has **no** tool 
 | Record storage | Snapshot per run; keyed records + change log | `save_records` node → `records` + `record_changes` | Price history and new/changed labels come from one place; conditions can use them | One extra node in every tracking flow (the agent adds it) |
 | Condition language | Expressions / regex; fixed operators | Fixed operators per field type | Safe, easy to validate and test; the committee asked for no unguarded regex | Less expressive |
 | Scheduler | External cron; in-process | APScheduler in process + cron-job.org keep-alive ping | One service, simplest | Runs pause if the ping fails while Render sleeps |
-| LLM | Gemini; Claude | Adapter chosen with `AI_PROVIDER` | A fallback if one provider fails during the demo | Two SDKs to test |
+| LLM | Gemini; Claude | Gemini primary, Claude fallback (`FallbackModel`) | Free tier first; the demo survives one provider failing | Two API keys to manage |
+| Agent framework | Hand-built loop on plain SDKs (~150 lines; the AI's first suggestion, overridden by the team); LangChain pieces; LangGraph; OpenAI AgentKit; PydanticAI | **PydanticAI** | Tools are typed Python functions validated by Pydantic (same models as the flow schema); Gemini and Claude built in; `TestModel`/`FunctionModel` for CI without API keys; small enough to explain | One library to learn on event day |
 | Live updates | WebSockets; SSE; polling | SSE for chat and run progress, polling for lists | Nothing needs messages from browser to server | 10 s delay on alert lists |
 
 ## AI components

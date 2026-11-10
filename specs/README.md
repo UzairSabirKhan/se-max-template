@@ -98,7 +98,7 @@ cp .env.example .env   # then fill in values
 
 Names only; values go in `.env` (see [.env.example](.env.example)).
 
-`DATABASE_URL`, `AI_PROVIDER`, `AI_MODEL`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `ALLOWED_DOMAINS`, `PUBLIC_BASE_URL`
+`DATABASE_URL`, `AI_MODEL`, `AI_FALLBACK_MODEL`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `ALLOWED_DOMAINS`, `PUBLIC_BASE_URL`
 
 ### Run
 

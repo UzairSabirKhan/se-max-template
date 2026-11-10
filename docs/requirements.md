@@ -44,7 +44,7 @@ Status: `Planned`, then `In progress`, then `Done` (with a test passing in CI), 
 | FR-06 | A sidebar agent sees the open flow and the user's selection and edits the **draft** through typed tools. Its edits appear on the canvas as pending changes the user accepts or rejects | Must | Planned |
 | FR-07 | Agent tools: `get_flow`, `list_node_types`, `fetch_page`, `test_selector`, `test_selector_on_many`, `add_node`, `update_node`, `remove_node`, `connect`, `disconnect`, `set_variable`, `remove_variable`, `dry_run`, `list_datasets`, `query_records`. At most 8 tool calls per message | Must | Planned |
 | FR-08 | The agent has no tool to publish, run, pause or delete, and none to execute code. Only the user can publish | Must | Planned |
-| FR-09 | The AI provider is chosen with `AI_PROVIDER` (`gemini` or `claude`) behind one adapter | Should | Planned |
+| FR-09 | The agent uses Gemini (`AI_MODEL`) with automatic fallback to Claude (`AI_FALLBACK_MODEL`) when the primary errors or is rate-limited (PydanticAI `FallbackModel`) | Should | Planned |
 | FR-10 | If AI is unavailable, the sidebar shows "AI service is unavailable, please try again". Manual editing, dry runs and published flows keep working | Must | Planned |
 | FR-11 | A malformed, truncated or extra-key AI reply, or a tool call that fails validation, is rejected with a clear error and never applied to the draft | Must | Planned |
 | FR-12 | Page content sent to the agent is stripped of scripts, cut to about 30 KB and marked as untrusted. Text on the page cannot change the rules | Must | Planned |

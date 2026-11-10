@@ -20,6 +20,8 @@ Required by the event rules. Log every meaningful use of AI tools during the bui
 | 10:35 | Kaleem | Claude Code | Write requirements, testing plan, judge checks, ADRs and README according to the judging criteria | Accepted as a starting point; all results left `Pending` until real runs | Team review pending |
 | ~10:45 | Kaleem | Claude Code | Split the build into two parallel workstreams with frozen contracts, covering every feature | Accepted `specs/workstreams.md` (A: engine and platform, B: editor and agent) and `specs/contracts.md`, with a coverage matrix mapping every FR, NFR and edge case to a task | Coverage matrix checked against requirements.md |
 | 10:50 | Kaleem | Claude Code | Move generated docs into `specs/`, then complete the template `docs/` files so everything is aligned | Accepted; template docs filled from `specs/`; links checked | Link check script; manual read-through pending |
+| ~10:55 | Kaleem | Claude Code | Which tech stack should the sidebar agent use? | AI recommended a **hand-built agent loop (~150 lines) on the plain Gemini and Anthropic SDKs**, with our own provider adapter and no framework. **Team rejected this suggestion** and asked for framework options instead (see next entry) | Team decision |
+| ~11:00 | Kaleem | Claude Code | Compare agent frameworks (plain SDKs, LangChain, LangGraph, OpenAI AgentKit, Google ADK, smolagents, PydanticAI) for the sidebar agent | **Team changed the AI's original suggestion from the ~150-line hand-built loop to PydanticAI.** Rejected OpenAI AgentKit (OpenAI-only, hosted), smolagents (executes generated code), LangGraph (too heavy). Docs updated: `FallbackModel` (Gemini → Claude), typed tools, `ModelRetry` on invalid edits, `FunctionModel` contract tests | API names to be checked against the PydanticAI docs before coding |
 
 ## Reflection
 
@@ -29,7 +31,8 @@ Required by the event rules. Log every meaningful use of AI tools during the bui
 
 ### Where AI was wrong or misleading
 
-`Pending` (record every AI mistake our tests or reviews caught, with the test name)
+- **Agent stack (design time, ~10:55):** the AI first suggested a hand-built agent loop of about 150 lines on the raw provider SDKs, with our own adapter for Gemini and Claude. We overrode it and chose **PydanticAI**. It gives typed, validated tools, built-in Gemini → Claude fallback, `ModelRetry` for self-correction and scripted test models, without us writing and testing that plumbing ourselves.
+- `Pending`: record every AI mistake our tests or reviews catch during the build, with the test name.
 
 ### What we did not delegate to AI
 
