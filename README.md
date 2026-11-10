@@ -19,12 +19,23 @@ The user is a small seller or shopper who wants to know when competitors' prices
 
 ## How it works
 
-```
- You describe a goal ──▶ AI assistant proposes steps ──▶ you review, Accept, Publish
-                                                              │
-        schedule or "Run now"  ──▶  engine (no AI)  ──▶  safe_fetch  ──▶  web page
-                                         │
-   Check page verdict ──▶ Save records (new / changed / removed) ──▶ conditions ──▶ alerts
+```mermaid
+flowchart LR
+    subgraph BUILD["① Build once, with AI"]
+        direction TB
+        A["You describe what to watch"] --> B["Assistant proposes the steps<br/>(tests every selector first)"]
+        B --> C["You review and Accept"]
+        C --> D["Publish<br/>(a test run must pass)"]
+    end
+    subgraph RUN["② Every run, zero AI"]
+        direction TB
+        E["Schedule or Run now"] --> F["Fetch pages safely"]
+        F --> G{"Check page"}
+        G -->|healthy| H["Save records<br/>new · changed · removed"]
+        H --> I["Conditions"] --> J["Alerts<br/>Rs 1,250 → Rs 1,099"]
+        G -->|layout changed or blocked| K["Site changed alert<br/>nothing stored"]
+    end
+    D --> E
 ```
 
 - **AI builds, code runs.** The assistant only edits a draft through typed tools; every edit is validated and shown for you to accept. It cannot publish, run or delete. Published runs never call AI (`ai_calls: 0` on every run, proven by a test).
