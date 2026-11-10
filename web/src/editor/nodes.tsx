@@ -1,7 +1,7 @@
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { cn as clsx } from "../components/ui";
-import { AlertTriangle, Check, FlaskConical, Loader2, Lock, Plus, Trash2, Zap } from "lucide-react";
-import { memo, useState } from "react";
+import { AlertTriangle, Check, FlaskConical, Loader2, Lock, MoreHorizontal, Plus, Settings2, Trash2, Zap } from "lucide-react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { PendingMark } from "../lib/flow";
 import { NODE_H, NODE_W } from "../lib/layout";
 import { NODE_META, TONE, summarize } from "../lib/nodeMeta";
@@ -44,19 +44,62 @@ function RunDot({ run }: { run?: NodeRunState }) {
   );
 }
 
-function Toolbar({ id, deletable, onTest, testable }: { id: string; deletable: boolean; onTest: (id: string) => void; testable: boolean }) {
+/** The "⋯" menu on every step: open its settings, test up to it, or delete it. */
+function NodeMenu({ node, onTest, testable }: { node: FlowNode; onTest: (id: string) => void; testable: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
   const removeNode = useEditor((s) => s.removeNode);
+  const select = useEditor((s) => s.select);
+  const bodyCount = useEditor((s) => s.draft.nodes.filter((n) => n.parentId === node.id).length);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as globalThis.Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  const required = node.type === "trigger" || node.type === "check_page";
+  const item = "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px]";
   return (
-    <div className="absolute -top-[30px] right-0 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-[.is-selected]:opacity-100">
-      {testable && (
-        <button onClick={(e) => { e.stopPropagation(); onTest(id); }} className="nodrag flex h-6 items-center gap-1 rounded-md border border-line bg-white px-1.5 text-[11.5px] font-medium text-zinc-600 shadow-card hover:text-brand-700">
-          <FlaskConical className="size-3" /> Test up to here
-        </button>
-      )}
-      {deletable && (
-        <button aria-label="Delete step" onClick={(e) => { e.stopPropagation(); removeNode(id); }} className="nodrag flex size-6 items-center justify-center rounded-md border border-line bg-white text-zinc-500 shadow-card hover:text-red-600">
-          <Trash2 className="size-3" />
-        </button>
+    <div ref={ref} className="nodrag relative">
+      <button
+        aria-label="Step actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!open) select(node.id); // a selected step is drawn on top, so its menu isn't hidden
+          setOpen((o) => !o);
+        }}
+        className="flex size-6 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-ink"
+      >
+        <MoreHorizontal className="size-4" />
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-7 z-50 w-56 rounded-xl border border-line bg-white p-1 shadow-pop" onClick={(e) => e.stopPropagation()}>
+          <button role="menuitem" className={clsx(item, "hover:bg-zinc-100")} onClick={() => { setOpen(false); select(node.id); }}>
+            <Settings2 className="size-3.5" /> Open settings
+          </button>
+          {testable && (
+            <button role="menuitem" className={clsx(item, "hover:bg-zinc-100")} onClick={() => { setOpen(false); onTest(node.id); }}>
+              <FlaskConical className="size-3.5" /> Test up to here
+            </button>
+          )}
+          <div className="my-1 h-px bg-line" />
+          {required ? (
+            <p className={clsx(item, "cursor-default text-zinc-400")} title="Every flow needs its Schedule and Check page">
+              <Lock className="size-3.5" /> Required step
+            </p>
+          ) : (
+            <button role="menuitem" className={clsx(item, "text-red-600 hover:bg-red-50")} onClick={() => { setOpen(false); removeNode(node.id); }}>
+              <Trash2 className="size-3.5" /> {bodyCount ? `Delete loop and its ${bodyCount} steps` : "Delete step"}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -85,7 +128,6 @@ export const StepNode = memo(function StepNode({ data, selected }: NodeProps<Ste
   const isTrigger = node.type === "trigger";
   const isCondition = node.type === "condition";
   const isOutput = node.type === "alert" || node.type === "results";
-  const locked = node.type === "check_page" || isTrigger;
   return (
     <div className={clsx("group relative", selected && "is-selected")} style={{ width: NODE_W }}>
       {isTrigger && (
@@ -94,7 +136,6 @@ export const StepNode = memo(function StepNode({ data, selected }: NodeProps<Ste
         </span>
       )}
       {mark && <span className={clsx("absolute -top-[26px] left-0 rounded-md px-1.5 py-0.5 text-[11px] font-semibold", isTrigger && "left-20", markLabel[mark].cls)}>{markLabel[mark].text}</span>}
-      <Toolbar id={node.id} deletable={!locked && !mark} onTest={data.onTest} testable={!isTrigger && !mark} />
       {!isTrigger && <Handle type="target" position={Position.Top} />}
       <div
         className={clsx(
@@ -125,6 +166,7 @@ export const StepNode = memo(function StepNode({ data, selected }: NodeProps<Ste
             </span>
           )}
           {node.type === "check_page" && <Lock className="size-3.5 text-zinc-300" aria-label="Required step" />}
+          {!mark && <NodeMenu node={node} onTest={data.onTest} testable={!isTrigger} />}
         </div>
       </div>
       {isCondition ? (
@@ -153,7 +195,6 @@ export const LoopNode = memo(function LoopNode({ data, selected }: NodeProps<Loo
   return (
     <div className={clsx("group relative", selected && "is-selected")} style={{ width, height }}>
       {mark && <span className={clsx("absolute -top-[26px] left-0 rounded-md px-1.5 py-0.5 text-[11px] font-semibold", markLabel[mark].cls)}>{markLabel[mark].text}</span>}
-      <Toolbar id={node.id} deletable={!mark} onTest={data.onTest} testable={!mark} />
       <Handle type="target" position={Position.Top} />
       <div
         className={clsx(
@@ -174,6 +215,7 @@ export const LoopNode = memo(function LoopNode({ data, selected }: NodeProps<Loo
           </div>
           <RunDot run={run} />
           {issues > 0 && <span className="flex size-5 items-center justify-center rounded-full bg-red-500 text-[11px] font-bold text-white">{issues}</span>}
+          {!mark && <NodeMenu node={node} onTest={data.onTest} testable />}
         </div>
         {empty && (
           <div className="flex h-[calc(100%-52px)] flex-col items-center justify-center gap-2 text-[12.5px] text-muted">

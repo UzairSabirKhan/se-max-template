@@ -97,7 +97,9 @@ export function stepNumbers(flow: Flow): Record<string, number> {
     indeg[e.target]++;
   }
   const inBody = new Set(flow.nodes.filter((n) => n.parentId).map((n) => n.id));
-  const queue = ids.filter((i) => indeg[i] === 0);
+  // Start from the trigger, so it is always step 1 even when other steps aren't linked yet.
+  const isTrigger = new Set(flow.nodes.filter((n) => n.type === "trigger").map((n) => n.id));
+  const queue = ids.filter((i) => indeg[i] === 0).sort((a, b) => Number(isTrigger.has(b)) - Number(isTrigger.has(a)));
   const order: string[] = [];
   while (queue.length) {
     const id = queue.shift()!;

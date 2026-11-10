@@ -1,10 +1,83 @@
 import clsx from "clsx";
-import { BookOpen, PanelLeft, ShieldCheck, Store, Workflow } from "lucide-react";
-import type { ReactNode } from "react";
+import { BookOpen, ChevronsUpDown, LogOut, PanelLeft, Settings, Store, User, Workflow } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { create } from "zustand";
 import { api } from "../lib/api";
-import { IconButton } from "./ui";
+import { IconButton, toast } from "./ui";
+
+/** Placeholder profile: there are no accounts yet (see README, known limitations). */
+const DEMO_USER = { name: "Demo User", email: "demo@scrapeonce.app", initials: "DU" };
+
+function ProfileMenu({ collapsed }: { collapsed: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  const notYet = (what: string) => {
+    setOpen(false);
+    toast.info(`${what} isn’t available in this demo`, "Accounts are not part of the hackathon build.");
+  };
+  const avatar = (
+    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-sky-400 text-[12px] font-semibold text-white">
+      {DEMO_USER.initials}
+    </span>
+  );
+  return (
+    <div ref={ref} className={clsx("relative", collapsed ? "mb-3 flex justify-center" : "m-3")}>
+      {open && (
+        <div role="menu" className={clsx("absolute bottom-full z-30 mb-2 w-56 rounded-xl border border-line bg-white p-1 shadow-pop", collapsed ? "left-0" : "left-0 right-0 w-auto")}>
+          <div className="border-b border-line px-3 py-2">
+            <p className="truncate text-[13px] font-semibold">{DEMO_USER.name}</p>
+            <p className="truncate text-[12px] text-muted">{DEMO_USER.email}</p>
+          </div>
+          {[
+            { label: "Profile", icon: <User className="size-3.5" /> },
+            { label: "Settings", icon: <Settings className="size-3.5" /> },
+          ].map((i) => (
+            <button key={i.label} role="menuitem" onClick={() => notYet(i.label)} className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-[13px] hover:bg-zinc-100">
+              {i.icon}
+              {i.label}
+            </button>
+          ))}
+          <div className="my-1 h-px bg-line" />
+          <button role="menuitem" onClick={() => notYet("Signing out")} className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-[13px] text-red-600 hover:bg-red-50">
+            <LogOut className="size-3.5" />
+            Sign out
+          </button>
+        </div>
+      )}
+      <button
+        aria-label="Account menu"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={collapsed ? DEMO_USER.name : undefined}
+        onClick={() => setOpen((o) => !o)}
+        className={clsx("flex items-center gap-2.5 rounded-xl text-left transition-colors hover:bg-zinc-200/60", collapsed ? "p-1" : "w-full p-2")}
+      >
+        {avatar}
+        {!collapsed && (
+          <>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-semibold">{DEMO_USER.name}</span>
+              <span className="block truncate text-[12px] text-muted">{DEMO_USER.email}</span>
+            </span>
+            <ChevronsUpDown className="size-4 shrink-0 text-zinc-400" />
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
 
 export const useShell = create<{ collapsed: boolean; toggle: () => void; set: (v: boolean) => void }>((set) => ({
   collapsed: false,
@@ -65,22 +138,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <NavItem to="https://github.com/muhammadusamahoyrr/ScrapeOne#readme" external icon={<BookOpen className="size-4" />} label="Docs" collapsed={collapsed} />
         </nav>
         <div className="flex-1" />
-        {!collapsed ? (
-          <div className="m-3 rounded-xl border border-line bg-white p-3">
-            <div className="flex items-center gap-2 text-[12.5px] font-semibold">
-              <ShieldCheck className="size-4 text-emerald-600" />
-              Runs never call AI
-            </div>
-            <p className="mt-1 text-[12px] leading-snug text-muted">The assistant only helps you build. Published flows run on plain rules.</p>
-            {api.mode === "mock" && (
-              <p className="mt-2 inline-flex rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">Demo data · no backend</p>
-            )}
-          </div>
-        ) : (
-          <div className="mb-4 flex justify-center" title="Runs never call AI">
-            <ShieldCheck className="size-4 text-emerald-600" />
-          </div>
+        {!collapsed && api.mode === "mock" && (
+          <p className="mx-3 inline-flex self-start rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">Demo data · no backend</p>
         )}
+        <ProfileMenu collapsed={collapsed} />
       </aside>
       <main className="min-w-0 flex-1 overflow-hidden py-2 pr-2">
         <div className="h-full overflow-hidden rounded-xl border border-line bg-white">{children}</div>

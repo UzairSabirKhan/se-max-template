@@ -372,6 +372,7 @@ export function SettingsPanel({ onTestNode }: { onTestNode: (id: string) => void
   const selectedId = useEditor((s) => s.selectedId);
   const allIssues = useEditor((s) => s.issues);
   const select = useEditor((s) => s.select);
+  const removeNode = useEditor((s) => s.removeNode);
   const stepData = useStepData(selectedId);
   const node = draft.nodes.find((n) => n.id === selectedId);
   if (!node) return null;
@@ -408,13 +409,18 @@ export function SettingsPanel({ onTestNode }: { onTestNode: (id: string) => void
         {!["trigger", "fetch_page", "extract_list"].includes(node.type) && <DataPanel data={stepData} />}
         <Form node={node} flow={draft} issues={issues} upstream={stepData} />
       </div>
-      {node.type !== "trigger" && !meta.disabled && (
-        <div className="border-t border-line p-3">
-          <button onClick={() => onTestNode(node.id)} className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-brand-200 bg-brand-50 text-[13.5px] font-medium text-brand-700 hover:bg-brand-100">
+      <div className="flex gap-2 border-t border-line p-3">
+        {node.type !== "trigger" && !meta.disabled && (
+          <button onClick={() => onTestNode(node.id)} className="flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-brand-200 bg-brand-50 text-[13.5px] font-medium text-brand-700 hover:bg-brand-100">
             <FlaskConical className="size-4" /> Test up to this step
           </button>
-        </div>
-      )}
+        )}
+        {node.type !== "trigger" && node.type !== "check_page" && (
+          <button onClick={() => removeNode(node.id)} title="Delete this step" className="flex h-10 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 text-[13.5px] font-medium text-red-600 hover:bg-red-50">
+            <Trash2 className="size-4" /> Delete
+          </button>
+        )}
+      </div>
     </div>
   );
 }
