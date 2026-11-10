@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { BookOpen, ChevronsUpDown, LogOut, PanelLeft, Settings, Store, User, Workflow } from "lucide-react";
+import { BookOpen, ChevronsUpDown, Database, LogOut, PanelLeft, Settings, Store, User, Workflow } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { create } from "zustand";
@@ -134,6 +134,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <nav className={clsx("flex flex-col gap-0.5", collapsed ? "px-2" : "px-3")}>
           <NavItem to="/" icon={<Workflow className="size-4" />} label="Flows" collapsed={collapsed} />
+          <NavItem to="/data" icon={<Database className="size-4" />} label="Data" collapsed={collapsed} />
           <NavItem to="/shop" external icon={<Store className="size-4" />} label="Mock shop" collapsed={collapsed} />
           <NavItem to="https://github.com/muhammadusamahoyrr/ScrapeOne#readme" external icon={<BookOpen className="size-4" />} label="Docs" collapsed={collapsed} />
         </nav>

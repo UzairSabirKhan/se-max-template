@@ -82,7 +82,7 @@ Status: `Planned`, then `In progress`, then `Done` (with a test passing in CI), 
 | FR-29 | `save_records` stores items in a named dataset keyed by identity key. It labels each item new / changed / same / removed (removed only if under 20% vanished), writes the current record plus one change row per changed field, and the first run is a silent baseline | Must | Done |
 | FR-30 | A price that moved more than ±50% is labelled SUSPECT: the record is not updated and a system alert asks for confirmation | Should | Done |
 | FR-31 | Alerts are per flow, from Alert nodes (condition matches) and system verdicts (site changed, blocked after 2 runs in a row, unsupported, suspect). They are de-duplicated, say why they fired (for example "Blue Kettle: Rs 1,250 → Rs 1,099 (−12%)") and appear in the flow's Alerts tab | Must | Done |
-| FR-32 | The Data tab lists each dataset's records and each record's change history | Should | Done |
+| FR-32 | The Data page (sidebar) lists each dataset's records and each record's change history | Should | Done |
 | FR-33 | CSV export of a dataset | Stretch | Done |
 | FR-34 | Field names that look like personal data (email, phone, CNIC) are rejected, and values matching those patterns are flagged | Should | Planned |
 | FR-35 | The agent endpoint is rate-limited (10 requests per minute per IP) | Should | Done |
