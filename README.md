@@ -10,6 +10,10 @@ ScrapeOnce is a no-code builder for website-watching flows. You describe what to
 
 ## Product demo video
 
+
+https://github.com/user-attachments/assets/8111b61c-e9c2-42f5-90db-241123c3fca4
+
+
 [![ScrapeOnce demo: the assistant builds a scholarship-watching flow from one sentence](docs/media/scrapeonce-demo.png)](docs/media/scrapeonce-demo.mp4)
 
 *One minute: we ask the assistant to watch a scholarship board. It fetches the page, tests its selectors, runs a test, and proposes the flow on the canvas for us to accept. Click the image to play the video ([MP4](docs/media/scrapeonce-demo.mp4), 1 MB).*
