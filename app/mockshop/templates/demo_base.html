@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ site }} (demo)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f6f7f9; color: #1f2328; }
+    header { background: {{ color }}; color: #fff; padding: 12px 20px; display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+    header a { color: #fff; opacity: .9; } main { padding: 20px; max-width: 1000px; margin: auto; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .card { background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 14px; }
+    .card h2, .card h3 { margin: 0 0 6px; font-size: 17px; }
+    .price, .amount, .salary { font-weight: 700; color: #0b6b3a; }
+    .muted { color: #667085; font-size: 13px; } .tag { background: #eef2f6; border-radius: 6px; padding: 1px 6px; font-size: 12px; }
+    .pager { margin-top: 18px; display: flex; gap: 12px; }
+  </style>
+</head>
+<body>
+  <header><strong>{{ site }}</strong> <span>Demo site for ScrapeOnce. Everything here is invented.</span>
+    <a href="/demo">All demo sites</a> <a href="/demo/admin">Demo controls</a></header>
+  <main>{% block content %}{% endblock %}</main>
+</body>
+</html>

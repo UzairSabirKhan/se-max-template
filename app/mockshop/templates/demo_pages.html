@@ -1,0 +1,105 @@
+{% extends "demo_base.html" %}
+{% block content %}
+
+{% if page_kind == "index" %}
+<h1>Demo sites</h1>
+<p>Each one shows a different thing ScrapeOnce can watch. Use <a href="/demo/admin">Demo controls</a> to change them during a demo.</p>
+<ul>
+  <li><a href="/demo/property">Property listings</a>: price drops on houses, flats and plots</li>
+  <li><a href="/demo/scholarships">Scholarship board</a>: new scholarships and deadlines</li>
+  <li><a href="/demo/jobs">Job board</a>: new jobs in a chosen city</li>
+  <li><a href="/shop">Kitchen shop</a>: product prices, stock, layout changes</li>
+</ul>
+
+{% elif page_kind == "property" %}
+<h1>Properties for sale</h1>
+<div id="listings" class="grid">
+  {% for x in items %}
+  <div class="card listing" data-id="{{ x.slug }}">
+    <h2 class="title">{{ x.title }}</h2>
+    <p><span class="price">{{ pkr(x.price) }}</span> <span class="muted">({{ crore(x.price) }})</span></p>
+    <p class="muted"><span class="city">{{ x.city }}</span> · <span class="area">{{ x.area }}</span> ·
+      <span class="type tag">{{ x.kind }}</span>{% if x.beds %} · <span class="beds">{{ x.beds }}</span> beds{% endif %}</p>
+    <a class="details" href="/demo/property/{{ x.slug }}">View details</a>
+  </div>
+  {% endfor %}
+</div>
+<nav class="pager">
+  {% if page > 1 %}<a class="prev" href="/demo/property?page={{ page - 1 }}">Previous</a>{% endif %}
+  <span>Page {{ page }} of {{ pages }}</span>
+  {% if page < pages %}<a class="next" href="/demo/property?page={{ page + 1 }}">Next</a>{% endif %}
+</nav>
+
+{% elif page_kind == "property_detail" %}
+<article class="listing-detail" data-id="{{ x.slug }}">
+  <h1 class="title">{{ x.title }}</h1>
+  <p class="price">{{ pkr(x.price) }}</p>
+  <p><span class="city">{{ x.city }}</span> · <span class="area">{{ x.area }}</span> · <span class="type">{{ x.kind }}</span></p>
+  <a href="/demo/property">Back to listings</a>
+</article>
+
+{% elif page_kind == "scholarships" %}
+<h1>Open scholarships</h1>
+<div id="scholarships" class="grid">
+  {% for s in items %}
+  <div class="card scholarship" data-id="{{ s.slug }}">
+    <h3 class="name">{{ s.name }}</h3>
+    <p class="muted provider">{{ s.provider }}</p>
+    <p><span class="amount">{{ pkr(s.amount) }}</span> <span class="muted">per year · <span class="covers">{{ s.covers }}</span></span></p>
+    <p class="muted"><span class="level tag">{{ s.level }}</span> · Deadline: <span class="deadline">{{ s.deadline }}</span></p>
+    <a class="apply" href="/demo/scholarships/{{ s.slug }}">How to apply</a>
+  </div>
+  {% endfor %}
+</div>
+
+{% elif page_kind == "scholarship_detail" %}
+<article class="scholarship-detail" data-id="{{ s.slug }}">
+  <h1 class="name">{{ s.name }}</h1>
+  <p class="provider">{{ s.provider }}</p>
+  <p class="amount">{{ pkr(s.amount) }}</p>
+  <p>Deadline: <span class="deadline">{{ s.deadline }}</span></p>
+  <a href="/demo/scholarships">Back to scholarships</a>
+</article>
+
+{% elif page_kind == "jobs" %}
+<h1>Latest jobs</h1>
+<div id="jobs" class="grid">
+  {% for j in items %}
+  <div class="card job" data-id="{{ j.slug }}">
+    <h2 class="title">{{ j.title }}</h2>
+    <p class="company">{{ j.company }}</p>
+    <p><span class="salary">{{ pkr(j.salary) }}</span> <span class="muted">per month</span></p>
+    <p class="muted"><span class="city">{{ j.city }}</span> · Posted <span class="posted">{{ j.posted }}</span></p>
+    <a class="details" href="/demo/jobs/{{ j.slug }}">View job</a>
+  </div>
+  {% endfor %}
+</div>
+
+{% elif page_kind == "job_detail" %}
+<article class="job-detail" data-id="{{ j.slug }}">
+  <h1 class="title">{{ j.title }}</h1>
+  <p class="company">{{ j.company }}</p>
+  <p class="salary">{{ pkr(j.salary) }}</p>
+  <p><span class="city">{{ j.city }}</span> · Posted <span class="posted">{{ j.posted }}</span></p>
+  <a href="/demo/jobs">Back to jobs</a>
+</article>
+
+{% elif page_kind == "admin" %}
+<h1>Demo controls</h1>
+<p>Change the demo sites live, then press <strong>Run now</strong> on a flow to see the alert. Reset puts everything back.</p>
+<h2>Property listings</h2>
+<form method="post" action="/demo/admin/property-drop" style="display:inline">
+  <select name="slug">{% for x in state.listings %}<option value="{{ x.slug }}">{{ x.title }} ({{ pkr(x.price) }})</option>{% endfor %}</select>
+  <button>Drop price by 10%</button>
+</form>
+<h2>Scholarships</h2>
+<form method="post" action="/demo/admin/scholarship-add" style="display:inline"><button>Add a new scholarship</button></form>
+<span class="muted">({{ state.scholarships | length }} listed)</span>
+<h2>Jobs</h2>
+<form method="post" action="/demo/admin/job-add" style="display:inline"><button>Post a new job</button></form>
+<span class="muted">({{ state.jobs | length }} listed)</span>
+<h2>Everything</h2>
+<form method="post" action="/demo/admin/reset"><button>Reset all demo sites</button></form>
+{% endif %}
+
+{% endblock %}

@@ -23,6 +23,7 @@ from app.api.routes import router as api_router
 from app.db.session import Database, resolve_database_url
 from app.engine import api as engine_api
 from app.engine.service import runs
+from app.mockshop.demo_routes import router as demo_router
 from app.mockshop.routes import router as shop_router
 from app.scheduler import FlowScheduler
 from app.settings import settings
@@ -80,6 +81,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app.include_router(api_router)
     app.include_router(agent_router)  # Workstream B: POST /api/flows/{id}/agent
     app.include_router(shop_router)  # /shop: the demo shop (the only site scraped during the event)
+    app.include_router(demo_router)  # /demo: property, scholarship and job demo sites (invented data)
 
     @app.api_route("/api", methods=["GET", "POST", "PUT", "DELETE", "PATCH"], include_in_schema=False)
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
