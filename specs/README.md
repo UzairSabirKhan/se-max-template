@@ -19,7 +19,7 @@ ScrapeOnce uses AI once, to help build the flow. Runs are free, deterministic an
 ## Live deployment
 
 - **URL:** `Pending`
-- **Platform:** Render (one web service) + Neon Postgres
+- **Platform:** Railway (one web service + Railway Postgres). Backup: Render + Neon, same Dockerfile
 - The app's own mock shop is at `<URL>/shop`. It's the only site scraped during the event, and all its data is invented.
 
 The service may take 30–60 s to wake on the first request.
@@ -98,7 +98,7 @@ cp .env.example .env   # then fill in values
 
 Names only; values go in `.env` (see [.env.example](.env.example)).
 
-`DATABASE_URL`, `AI_MODEL`, `AI_FALLBACK_MODEL`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `ALLOWED_DOMAINS`, `PUBLIC_BASE_URL`
+`DATABASE_URL`, `AI_MODEL`, `AI_FALLBACK_MODEL`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `ANTHROPIC_API_KEY`, `ALLOWED_DOMAINS`, `PUBLIC_BASE_URL`
 
 ### Run
 
@@ -121,7 +121,7 @@ uv run pytest -m live         # real AI + deployed URL, needs .env
 
 - **No authentication.** Anyone with the URL can edit, publish or delete flows. Demo only.
 - **Static HTML only.** Pages that need JavaScript get a clear UNSUPPORTED message. Browser nodes are shown but disabled.
-- **Scheduled runs pause** if Render sleeps and the keep-alive ping fails. "Run now" always works.
+- **On Render free, scheduled runs pause** if the service sleeps and the keep-alive ping fails (Railway doesn't sleep). "Run now" always works.
 - **No version history.** Republishing replaces the live flow.
 - **Loops** are limited to 25 items, run one at a time, and can't be nested.
 - **Price drift** onto a different element (for example an old struck-through price) that still parses is not always caught. We catch structural breakage, not every wrong value.

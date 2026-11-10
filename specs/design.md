@@ -4,7 +4,7 @@
 
 ScrapeOnce is a no-code scraping workflow builder. A user, helped by a sidebar AI agent, builds a **flow**: a graph of nodes on a canvas. Once the user publishes a flow, it runs on its own schedule. **Runs never call AI.**
 
-Everything is one service on Render:
+Everything is one service, deployed from one Dockerfile to **Railway** (primary) or **Render** (backup):
 
 ```mermaid
 flowchart LR
@@ -12,7 +12,7 @@ flowchart LR
     UI[React + React Flow editor]
     SB[Agent sidebar]
   end
-  subgraph Render["Render web service (uvicorn, 1 worker)"]
+  subgraph Host["Railway or Render web service (uvicorn, 1 worker)"]
     API[FastAPI /api]
     AG[app/ai agent loop]
     ENG[app/engine runner<br/>NO AI imports]
@@ -321,7 +321,7 @@ There's no auth for the hackathon build (see Known limits).
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| GET | `/health` | Health check; pinged by cron-job.org to keep Render awake |
+| GET | `/health` | Health check (also pings the database); the hosts' health check, and on Render the cron-job.org keep-alive ping |
 | GET / POST | `/api/flows` | List flows (with unread alert count) / create a flow |
 | GET / PUT / DELETE | `/api/flows/{id}` | Read / save the draft (`draft_version` check; 409 on conflict) / delete |
 | POST | `/api/flows/{id}/dry-run` | Run the **draft** once; nothing stored except the run record (trigger `dry_run`) |
@@ -411,7 +411,7 @@ What PydanticAI is **not** used for: fetching pages (always our `safe_fetch`), s
 
 | Decision | Options considered | Chosen | Why | Tradeoff accepted |
 |---|---|---|---|---|
-| Runtime engine | Playwright; static HTTP | Static HTTP (httpx + selectolax) | Committee scope (static only); Render free has 512 MB | No click or scroll; JavaScript pages get a clear UNSUPPORTED message |
+| Runtime engine | Playwright; static HTTP | Static HTTP (httpx + selectolax) | Committee scope (static only); free hosts have about 512 MB | No click or scroll; JavaScript pages get a clear UNSUPPORTED message |
 | UI | HTMX + Drawflow; step list; React Flow | React Flow, built by Vite and served by FastAPI | The most mature node editor; still one service | A build step in deploy |
 | Where the schedule lives | Separate table; inside the flow | Trigger node in the flow | One source of truth; the agent can edit it like any node | The schedule only changes on republish |
 | Draft vs published | Edit live; draft + publish | Draft + publish | Running flows are never changed by an edit or by the agent | No version history (cut list) |
@@ -420,7 +420,7 @@ What PydanticAI is **not** used for: fetching pages (always our `safe_fetch`), s
 | Loops | Free back-edges; bounded container node | `for_each` container (React Flow group), `max_items` ≤ 25, no nesting, sequential | Every run ends; easy to validate; the same pages give the same output | No while-loops or nested loops |
 | Record storage | Snapshot per run; keyed records + change log | `save_records` node → `records` + `record_changes` | Price history and new/changed labels come from one place; conditions can use them | One extra node in every tracking flow (the agent adds it) |
 | Condition language | Expressions / regex; fixed operators | Fixed operators per field type | Safe, easy to validate and test; the committee asked for no unguarded regex | Less expressive |
-| Scheduler | External cron; in-process | APScheduler in process + cron-job.org keep-alive ping | One service, simplest | Runs pause if the ping fails while Render sleeps |
+| Scheduler | External cron; in-process | APScheduler in process; Railway stays awake, on Render a cron-job.org keep-alive ping | One service, simplest | Runs pause if the ping fails while Render sleeps |
 | LLM | Gemini; Claude | Gemini primary, Claude fallback (`FallbackModel`) | Free tier first; the demo survives one provider failing | Two API keys to manage |
 | Agent framework | Hand-built loop on plain SDKs (~150 lines; the AI's first suggestion, overridden by the team); LangChain pieces; LangGraph; OpenAI AgentKit; PydanticAI | **PydanticAI** | Tools are typed Python functions validated by Pydantic (same models as the flow schema); Gemini and Claude built in; `TestModel`/`FunctionModel` for CI without API keys; small enough to explain | One library to learn on event day |
 | Live updates | WebSockets; SSE; polling | SSE for chat and run progress, polling for lists | Nothing needs messages from browser to server | 10 s delay on alert lists |
@@ -457,8 +457,8 @@ Public product data from our own mock shop only. No accounts and no personal dat
 
 - **No authentication:** anyone with the URL can edit, publish or delete flows. Acceptable for the hackathon demo only.
 - Static HTML only. Pages that load their data with JavaScript get an UNSUPPORTED verdict.
-- Scheduled runs pause if Render sleeps and the keep-alive ping fails.
+- On Render free, scheduled runs pause if the service sleeps and the keep-alive ping fails. Railway does not sleep.
 - No version history: republishing replaces the live copy.
 - **No schema migrations:** tables are created at startup. Adding a column to an existing table during the event means resetting the database.
-- **Storage:** Neon Postgres in production (`DATABASE_URL`). Without it the app uses a local SQLite file, and refuses to start on Render, whose disk is wiped on every deploy.
+- **Storage:** Postgres in production (`DATABASE_URL`: Railway's own Postgres, or Neon with Render). Without it the app uses a local SQLite file, and refuses to start on Railway or Render, whose disks are wiped on every deploy.
 - DNS rebinding between the check and the connection is reduced by pinning the resolved IP; any path we can't pin is listed here once tested.

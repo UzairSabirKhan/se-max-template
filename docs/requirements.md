@@ -44,7 +44,7 @@ Status: `Planned`, then `In progress`, then `Done` (with a test passing in CI), 
 | FR-06 | A sidebar agent sees the open flow and the user's selection and edits the **draft** through typed tools. Its edits appear on the canvas as pending changes the user accepts or rejects | Must | Planned |
 | FR-07 | Agent tools: `get_flow`, `list_node_types`, `fetch_page`, `test_selector`, `test_selector_on_many`, `add_node`, `update_node`, `remove_node`, `connect`, `disconnect`, `set_variable`, `remove_variable`, `dry_run`, `list_datasets`, `query_records`. At most 8 tool calls per message | Must | Planned |
 | FR-08 | The agent has no tool to publish, run, pause or delete, and none to execute code. Only the user can publish | Must | Planned |
-| FR-09 | The agent uses Gemini (`AI_MODEL`) with automatic fallback to Claude (`AI_FALLBACK_MODEL`) when the primary errors or is rate-limited (PydanticAI `FallbackModel`) | Should | Planned |
+| FR-09 | The agent uses `AI_MODEL` (e.g. Gemini) with automatic fallback, in order, to each model in `AI_FALLBACK_MODEL` (e.g. Groq, then Claude) when one errors, times out or is rate-limited (PydanticAI `FallbackModel`). Providers: Gemini, Groq, Claude; a model without its API key is skipped | Should | Planned |
 | FR-10 | If AI is unavailable, the sidebar shows "AI service is unavailable, please try again". Manual editing, dry runs and published flows keep working | Must | Planned |
 | FR-11 | A malformed, truncated or extra-key AI reply, or a tool call that fails validation, is rejected with a clear error and never applied to the draft | Must | Planned |
 | FR-12 | Page content sent to the agent is stripped of scripts, cut to about 30 KB and marked as untrusted. Text on the page cannot change the rules | Must | Planned |
@@ -114,7 +114,7 @@ Status: `Planned`, then `In progress`, then `Done` (with a test passing in CI), 
 | NFR-05 | Reliability | Breakage is detected, not stored | Every mock-shop page gives its expected verdict (v2 → BROKEN, blocked → BLOCKED, js → UNSUPPORTED, dupes → BROKEN) with 0 records written | `tests/test_classifier.py` + live red-team run | Not measured |
 | NFR-06 | Performance | A list-page run is quick | p95 under 5 s for the 12-item mock shop list (warm service) | `runs.duration_ms` over at least 10 live runs | Not measured |
 | NFR-07 | Boundedness | Every run ends | No run longer than 120 s, including slow-drip servers | Slow-drip test + max of `runs.duration_ms` | Not measured |
-| NFR-08 | Resources | Fits the free host | Memory under 400 MB on Render free (512 MB) | Render metrics during the demo schedule | Not measured |
+| NFR-08 | Resources | Fits the free host | Memory under 400 MB on the free host (512 MB) | Host metrics (Railway or Render) during the demo schedule | Not measured |
 | NFR-09 | Availability | Reachable for judging | `/health` returns 200 from the public URL; scheduled runs keep firing during judging | cron-job.org history + run history timestamps | Not measured |
 | NFR-10 | Usability | A non-developer can set up tracking | A teammate who didn't build the UI creates and publishes the "alert me when any of these prices drops" flow with the agent in under 5 min on a fresh browser | Timed walkthrough, recorded in testing.md | Not measured |
 | NFR-11 | Maintainability | Code quality is checked on every push | CI green on `main`; ruff clean; line coverage of `app/engine` at least 80% | GitHub Actions + pytest-cov | Not measured |
@@ -123,16 +123,16 @@ Status: `Planned`, then `In progress`, then `Done` (with a test passing in CI), 
 ## Constraints
 
 - 6-hour build on 10 Nov 2026 (9:00–3:00), starting from the organizers' template. No pre-written code.
-- Free hosting: one Render web service (512 MB RAM, sleeps after about 15 min idle) and Neon free Postgres.
+- Free hosting, one Docker image: Railway (trial credit; does not sleep; Postgres in the same project) as primary, Render free (512 MB, sleeps after about 15 min idle) + Neon Postgres as backup.
 - Static HTML only. No headless browser (memory and committee scope).
 - Only our own mock shop is scraped during the event. No real stores, no personal data.
-- No secrets in the repository. Keys live in Render environment variables.
+- No secrets in the repository. Keys live in the host's environment variables.
 
 ## Assumptions
 
 - Target stores render prices in the HTML (true for typical Shopify and WooCommerce themes).
 - One uvicorn worker is enough for the demo load, which keeps the in-process scheduler from firing twice.
-- A free cron-job.org ping every 5 minutes keeps Render awake during judging.
+- On Render only: a free cron-job.org ping every 5 minutes keeps the service awake during judging.
 - The Gemini or Claude API is reachable at the venue for the agent. Runs don't need it.
 
 ## Out of scope
