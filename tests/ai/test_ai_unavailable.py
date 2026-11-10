@@ -19,7 +19,7 @@ pytestmark = pytest.mark.contract
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(tmp_path, fake_web):  # publish test-runs the flow
     agent_route.limiter.reset()
     agent_route._model_for.cache_clear()
     app = create_app(database_url=f"sqlite+aiosqlite:///{(tmp_path / 'noai.db').as_posix()}")

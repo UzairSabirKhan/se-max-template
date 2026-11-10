@@ -39,14 +39,17 @@ def _no_network(monkeypatch):
     engine_api.clear_page_cache()
 
 
-def mock_shop_pages() -> dict[str, tuple[int, str]]:
-    """path -> (status, html) for the demo shop, rendered by the real mock shop code."""
+def mock_shop_pages(reset: bool = True) -> dict[str, tuple[int, str]]:
+    """path -> (status, html) for the demo shop, rendered by the real mock shop code.
+
+    reset=False renders the shop as a test has changed it (a new price, layout v2...)."""
     from fastapi.testclient import TestClient
 
     from app.mockshop.routes import router
     from app.mockshop.state import state
 
-    state.reset()
+    if reset:
+        state.reset()
     from fastapi import FastAPI
 
     app = FastAPI()
@@ -62,14 +65,12 @@ def mock_shop_pages() -> dict[str, tuple[int, str]]:
 
 @pytest.fixture
 def fake_web(monkeypatch):
-    """Serve pages at https://shop.example.com/<path> through the real safe_fetch. Returns the page dict,
-    which a test may change (pages["/x"] = (200, "<html>...")) before fetching."""
+    """Serve the shop's pages at <any public host>/<path> through the real safe_fetch (only DNS and the
+    socket are faked). Returns the page dict, which a test may change (pages["/x"] = (200, "<html>..."))."""
     pages = mock_shop_pages()
 
     async def resolve(host: str, port: int) -> list[str]:
-        if host == "shop.example.com":
-            return [FAKE_PUBLIC_IP]
-        raise OSError(f"unknown host {host} in fake_web")
+        return [FAKE_PUBLIC_IP]
 
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.raw_path.decode()

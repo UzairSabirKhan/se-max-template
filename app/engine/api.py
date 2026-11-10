@@ -3,8 +3,8 @@
 This module is the ONLY door from app/ai into the engine. Nothing in app/engine imports
 app/ai (tests/engine/test_zero_ai.py checks this).
 
-Status: validate_flow, parse_flow, node_type_schemas, fetch_outline and test_selector are REAL;
-dry_run, list_datasets and sample_records are still STUBS until the runner and records land (A13–A15).
+Everything here is REAL. dry_run, list_datasets and sample_records need the app's database, which
+main.py hands over at startup with `use_database(db)`.
 """
 
 from __future__ import annotations
@@ -14,8 +14,10 @@ from typing import Any
 
 from selectolax.lexbor import LexborHTMLParser
 
-from app.engine import stub_data
+from app.db.runs import RunRepo
+from app.db.session import Database
 from app.engine.fetcher import FetchError, FetchOptions, safe_fetch, settings_options
+from app.engine.runner import RunOptions, run_flow
 from app.flow.schema import node_type_schemas as _node_type_schemas
 from app.flow.validate import parse_flow as _parse_flow
 from app.flow.validate import validate_flow as _validate_flow
@@ -32,6 +34,18 @@ _NOISE = "script, style, noscript, svg, iframe, template, link, meta, object, em
 # request to the site instead of one per selector (each would also wait for the 2 s politeness gap).
 # Runs never use this cache: they always fetch fresh.
 _page_cache: dict[str, tuple[float, str]] = {}
+_database: Database | None = None
+
+
+def use_database(db: Database | None) -> None:
+    global _database
+    _database = db
+
+
+def _db() -> Database:
+    if _database is None:
+        raise RuntimeError("engine.api has no database: call use_database(db) at startup")
+    return _database
 
 
 def validate_flow(flow: dict, for_publish: bool = False, draft: bool = False) -> list[dict]:
@@ -109,15 +123,20 @@ async def test_selector(url: str, selector: str, attr: str | None = None) -> dic
 
 
 async def dry_run(flow: dict, flow_id: str | None, until_node: str | None = None) -> dict[str, Any]:
-    """RunReport for the draft; never writes records. STUB."""
-    return stub_data.run_report(flow_id=flow_id or "flow_stub1")
+    """Run the draft for real (fresh fetches) and return its RunReport. Writes no records and no alerts,
+    only a run row marked `dry_run`. REAL. (`until_node` is accepted; the whole draft is run.)"""
+    if not flow_id:
+        raise ValueError("dry_run needs the flow id")
+    return await run_flow(flow, flow_id, _db(), RunOptions(trigger="dry_run", fetch=fetch_options()))
 
 
 async def list_datasets(flow_id: str) -> list[dict[str, Any]]:
-    """The flow's datasets. STUB."""
-    return stub_data.datasets(flow_id)
+    """The flow's datasets: name, identity field, fields, record count. REAL."""
+    async with _db().sessions() as session:
+        return await RunRepo(session).list_datasets(flow_id)
 
 
 async def sample_records(dataset_id: str, limit: int = 20) -> list[dict[str, Any]]:
-    """Read-only sample of stored records. STUB."""
-    return stub_data.records()[: max(0, min(limit, 20))]
+    """Read-only sample of stored records (at most 20). REAL."""
+    async with _db().sessions() as session:
+        return (await RunRepo(session).list_records(dataset_id, max(1, min(limit, 20)), 0))["records"]

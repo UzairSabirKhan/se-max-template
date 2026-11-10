@@ -155,7 +155,7 @@ def test_save_refuses_unsafe_draft_with_issues(client):
 
 
 @pytest.mark.req("FR-14")
-def test_publish_refuses_incomplete_flow_then_accepts_complete_one(client):
+def test_publish_refuses_incomplete_flow_then_accepts_complete_one(client, fake_web):
     flow = client.post("/api/flows", json={"name": "A"}).json()
     assert client.post(f"/api/flows/{flow['id']}/publish").status_code == 422  # starter is incomplete
 

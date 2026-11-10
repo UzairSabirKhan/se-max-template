@@ -21,7 +21,10 @@ from app.api.errors import ApiError, install_error_handlers
 from app.api.limits import BodySizeLimit
 from app.api.routes import router as api_router
 from app.db.session import Database, resolve_database_url
+from app.engine import api as engine_api
+from app.engine.service import runs
 from app.mockshop.routes import router as shop_router
+from app.scheduler import FlowScheduler
 from app.settings import settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -43,10 +46,17 @@ def create_app(database_url: str | None = None) -> FastAPI:
         db = Database(target)
         await db.create_tables()
         app.state.db = db
+        engine_api.use_database(db)
         log.info("Database ready (%s)", "SQLite" if target.is_sqlite else "Postgres")
+        scheduler = FlowScheduler(db, runs, engine_api.fetch_options)
+        await scheduler.start()  # rebuilds every published flow's schedule from the database
+        app.state.scheduler = scheduler
         try:
             yield
         finally:
+            scheduler.shutdown()
+            await runs.wait_idle()
+            engine_api.use_database(None)
             await db.dispose()
 
     app = FastAPI(title="ScrapeOnce", version="0.1.0", docs_url="/api/docs", openapi_url="/api/openapi.json",
