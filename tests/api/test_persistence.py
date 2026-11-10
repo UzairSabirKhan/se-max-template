@@ -191,3 +191,50 @@ def test_postgres_round_trip():
     finally:
         with make_client(url) as cleanup:
             cleanup.delete(f"/api/flows/{flow_id}")
+
+
+# --- startup against a database that isn't there yet (Railway deploy log, 13:40) ------------------------
+def _pg(url="postgresql://admin:s3cret-pw@postgres.railway.internal:5432/railway"):
+    return Database(resolve_database_url(url, host=None))
+
+
+@pytest.mark.req("NFR-09")
+def test_describe_never_shows_the_password():
+    assert _pg().describe() == "Postgres at postgres.railway.internal:5432/railway"
+
+
+@pytest.mark.req("NFR-09")
+async def test_startup_waits_for_a_slow_private_network(monkeypatch):
+    db, calls, slept = _pg(), [], []
+
+    async def ping(timeout=3.0):
+        calls.append(1)
+        if len(calls) < 3:
+            raise OSError("[Errno -2] Name or service not known")
+
+    async def sleep(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr(db, "ping", ping)
+    await db.wait_until_ready(sleep=sleep)
+    assert len(calls) == 3 and slept == [1, 2]
+    await db.dispose()
+
+
+@pytest.mark.req("NFR-09")
+async def test_unreachable_database_fails_with_one_clear_line(monkeypatch):
+    db = _pg()
+
+    async def ping(timeout=3.0):
+        raise OSError("[Errno -2] Name or service not known")
+
+    async def sleep(seconds):
+        return None
+
+    monkeypatch.setattr(db, "ping", ping)
+    with pytest.raises(DatabaseConfigError) as err:
+        await db.wait_until_ready(sleep=sleep)
+    message = str(err.value)
+    assert "postgres.railway.internal:5432" in message and "Name or service not known" in message
+    assert "Postgres.DATABASE_URL" in message and "s3cret-pw" not in message
+    await db.dispose()

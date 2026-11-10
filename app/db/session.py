@@ -11,6 +11,7 @@ DATABASE_URL decides where data lives:
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -22,6 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.db.models import Base
 from app.settings import ROOT
+
+log = logging.getLogger("scrapeonce.db")
 
 
 class DatabaseConfigError(RuntimeError):

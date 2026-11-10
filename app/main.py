@@ -44,6 +44,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         db = Database(target)
+        log.info("Connecting to the database (%s)", db.describe())
+        await db.wait_until_ready()
         await db.create_tables()
         app.state.db = db
         engine_api.use_database(db)
