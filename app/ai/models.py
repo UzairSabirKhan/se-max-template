@@ -1,0 +1,201 @@
+"""Model setup for the sidebar agent: primary model, fallback model, timeouts and per-message deps.
+
+Used only while a user builds a flow (design time). Published runs never call AI, and app/engine
+never imports app/ai.
+
+Configuration (names in .env.example, values never committed):
+    AI_MODEL           "<provider>:<model>", e.g. "google:<gemini-model>" (tried first)
+    AI_FALLBACK_MODEL  one or more "<provider>:<model>", comma-separated, tried in order when the one
+                       before fails, e.g. "groq:<llama-model>,anthropic:<claude-model>"
+    GEMINI_API_KEY or GOOGLE_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY
+    GEMINI_API_KEY_2, GROQ_API_KEY_2, ANTHROPIC_API_KEY_2
+                       optional second key per provider (another account). The same model is tried with
+                       it when the first key fails, e.g. its free quota runs out, before the next model.
+
+Providers: google (Gemini), groq, anthropic (Claude). Any model whose key is missing is skipped, so
+setting only the keys you have is enough.
+"""
+
+from __future__ import annotations
+
+import copy
+import logging
+import os
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from typing import Any
+
+from pydantic_ai import UsageLimits
+from pydantic_ai.exceptions import UserError
+from pydantic_ai.models import Model, infer_model
+from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.models.fallback import FallbackModel
+from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.models.groq import GroqModel
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.providers.anthropic import AnthropicProvider
+from pydantic_ai.providers.google import GoogleProvider
+from pydantic_ai.providers.groq import GroqProvider
+from pydantic_ai.settings import ModelSettings
+
+log = logging.getLogger(__name__)
+
+#: No cap on tool calls per message (FR-07): the assistant keeps going until it is done. This only stops a
+#: model that goes round in circles; a normal message, even a whole flow, needs far fewer requests.
+MAX_MODEL_REQUESTS = 60
+
+#: Per-request limits. SDK retries are kept low because FallbackModel moves on to the next model instead.
+MODEL_SETTINGS = ModelSettings(
+    request_timeout=45.0,  # one request to one model, every attempt included
+    first_event_timeout=20.0,  # a streamed reply must start within this
+    max_retries=1,
+)
+
+# "google-gla" is the old PydanticAI prefix (still written in specs/.env.example); "google" is current.
+_GOOGLE_PREFIXES = {"google", "google-gla"}
+
+
+class AIUnavailable(Exception):
+    """No model can be used (not configured, or no API key). Maps to C5 error code `ai_unavailable`."""
+
+
+@dataclass(frozen=True)
+class AIConfig:
+    model: str = ""
+    fallback_model: str = ""
+    google_api_key: str = ""
+    anthropic_api_key: str = ""
+    groq_api_key: str = ""
+    google_api_key_2: str = ""
+    anthropic_api_key_2: str = ""
+    groq_api_key_2: str = ""
+
+    @property
+    def specs(self) -> list[str]:
+        """AI_MODEL, then each AI_FALLBACK_MODEL entry, in the order they are tried."""
+        fallbacks = [s.strip() for s in self.fallback_model.split(",")]
+        return [s for s in (self.model.strip(), *fallbacks) if s]
+
+    @classmethod
+    def from_env(cls) -> AIConfig:
+        env = os.environ.get
+        return cls(
+            model=env("AI_MODEL", "").strip(),
+            fallback_model=env("AI_FALLBACK_MODEL", "").strip(),
+            google_api_key=(env("GOOGLE_API_KEY") or env("GEMINI_API_KEY") or "").strip(),
+            anthropic_api_key=env("ANTHROPIC_API_KEY", "").strip(),
+            groq_api_key=env("GROQ_API_KEY", "").strip(),
+            google_api_key_2=(env("GOOGLE_API_KEY_2") or env("GEMINI_API_KEY_2") or "").strip(),
+            anthropic_api_key_2=env("ANTHROPIC_API_KEY_2", "").strip(),
+            groq_api_key_2=env("GROQ_API_KEY_2", "").strip(),
+        )
+
+    def keys(self, provider: str) -> list[str]:
+        """The provider's keys in the order they are tried: the main one, then the optional second one."""
+        pairs = {"google": (self.google_api_key, self.google_api_key_2),
+                 "anthropic": (self.anthropic_api_key, self.anthropic_api_key_2),
+                 "groq": (self.groq_api_key, self.groq_api_key_2)}[provider]
+        return list(dict.fromkeys(k for k in pairs if k))  # a second key equal to the first adds nothing
+
+
+def _build_one(spec: str, config: AIConfig) -> list[Model]:
+    """Turn "<provider>:<model>" into one Model per API key, in the order the keys are tried.
+
+    Raises AIUnavailable with a reason the logs can show.
+    """
+    provider, sep, name = spec.partition(":")
+    if not sep or not name:
+        raise AIUnavailable(f"{spec!r} is not in the form '<provider>:<model>'")
+    if provider == "test":
+        return [TestModel()]
+    if provider in _GOOGLE_PREFIXES:
+        keys = config.keys("google")
+        if not keys:
+            raise AIUnavailable(f"{spec}: GEMINI_API_KEY (or GOOGLE_API_KEY) is not set")
+        return [GoogleModel(name, provider=GoogleProvider(api_key=k)) for k in keys]
+    if provider == "anthropic":
+        keys = config.keys("anthropic")
+        if not keys:
+            raise AIUnavailable(f"{spec}: ANTHROPIC_API_KEY is not set")
+        return [AnthropicModel(name, provider=AnthropicProvider(api_key=k)) for k in keys]
+    if provider == "groq":
+        keys = config.keys("groq")
+        if not keys:
+            raise AIUnavailable(f"{spec}: GROQ_API_KEY is not set")
+        return [GroqModel(name, provider=GroqProvider(api_key=k)) for k in keys]
+    try:  # any other provider PydanticAI knows, using its own environment variables
+        return [infer_model(spec)]
+    except (UserError, ImportError, ValueError) as exc:
+        # ImportError: a provider whose package isn't installed (e.g. "openai:...") must mean
+        # "assistant offline", never a crash, and must not stop the next model from being tried.
+        raise AIUnavailable(f"{spec}: {exc}") from exc
+
+
+def get_model(config: AIConfig | None = None) -> Model:
+    """The model the agent uses: AI_MODEL, then each AI_FALLBACK_MODEL entry in turn when one fails.
+    A provider with a second key is tried with it before moving to the next model.
+
+    A model that can't be built (missing key, bad name) is skipped with a log line. If neither can be
+    built, raises AIUnavailable: the sidebar shows "assistant offline" and published flows keep running.
+    """
+    config = config or AIConfig.from_env()
+    built: list[Model] = []
+    reasons: list[str] = []
+    for spec in config.specs:
+        try:
+            built.extend(_build_one(spec, config))
+        except AIUnavailable as exc:
+            reasons.append(str(exc))
+            log.warning("AI model skipped: %s", exc)
+    if not built:
+        raise AIUnavailable("; ".join(reasons) or "AI_MODEL and AI_FALLBACK_MODEL are not set")
+    return built[0] if len(built) == 1 else FallbackModel(built[0], *built[1:])
+
+
+def usage_limits() -> UsageLimits:
+    """Limits for one user message: no tool-call cap, only a high request ceiling against an endless loop."""
+    return UsageLimits(tool_calls_limit=None, request_limit=MAX_MODEL_REQUESTS)
+
+
+EmitFn = Callable[[str, dict[str, Any]], Awaitable[None]]
+
+
+async def _no_emit(event: str, data: dict[str, Any]) -> None:
+    return None
+
+
+@dataclass
+class AgentDeps:
+    """State for one agent message. Tools read and edit `draft`, a private copy of the user's draft.
+
+    Nothing here is saved: proposed edits collect in `ops` and go to the browser as C5 `flow_ops`,
+    where the user accepts or rejects them.
+    """
+
+    flow_id: str
+    draft: dict[str, Any]
+    selected_node_ids: list[str] = field(default_factory=list)
+    emit: EmitFn = _no_emit
+    tool_calls: int = 0
+    ops: list[dict[str, Any]] = field(default_factory=list)
+
+    @classmethod
+    def for_message(
+        cls,
+        flow_id: str,
+        draft: dict[str, Any],
+        selected_node_ids: list[str] | None = None,
+        emit: EmitFn | None = None,
+    ) -> AgentDeps:
+        """Build deps around a deep copy, so tool edits never touch the caller's draft."""
+        return cls(
+            flow_id=flow_id,
+            draft=copy.deepcopy(draft),
+            selected_node_ids=list(selected_node_ids or []),
+            emit=emit or _no_emit,
+        )
+
+    def count_tool_call(self) -> int:
+        """Record one tool call (reported in the `done` event); returns how many this message has made."""
+        self.tool_calls += 1
+        return self.tool_calls

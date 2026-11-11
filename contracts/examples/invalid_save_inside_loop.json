@@ -1,0 +1,209 @@
+{
+  "_expected_message": "can't be inside a loop",
+  "_for_publish": false,
+  "_issues": [
+    {
+      "node_id": "s2",
+      "path": "parentId",
+      "message": "save_records can't be inside a loop (allowed: condition, extract_fields, fetch_item_page, wait)"
+    }
+  ],
+  "flow": {
+    "version": 1,
+    "variables": [
+      {
+        "name": "watch_urls",
+        "type": "url_list",
+        "value": [
+          "https://scrapeonce.onrender.com/shop/p/blue-kettle",
+          "https://scrapeonce.onrender.com/shop/p/steel-flask",
+          "https://scrapeonce.onrender.com/shop/p/tea-set"
+        ]
+      },
+      {
+        "name": "min_drop_pct",
+        "type": "number",
+        "value": 1
+      }
+    ],
+    "nodes": [
+      {
+        "id": "t1",
+        "type": "trigger",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "config": {
+          "mode": "interval",
+          "every_minutes": 60
+        }
+      },
+      {
+        "id": "l1",
+        "type": "for_each",
+        "position": {
+          "x": 0,
+          "y": 120
+        },
+        "config": {
+          "source": {
+            "var": "watch_urls"
+          },
+          "max_items": 25,
+          "on_error": "skip"
+        }
+      },
+      {
+        "id": "b1",
+        "type": "fetch_item_page",
+        "parentId": "l1",
+        "position": {
+          "x": 20,
+          "y": 40
+        },
+        "config": {
+          "url_field": "url"
+        }
+      },
+      {
+        "id": "b2",
+        "type": "extract_fields",
+        "parentId": "l1",
+        "position": {
+          "x": 20,
+          "y": 140
+        },
+        "config": {
+          "fields": [
+            {
+              "name": "title",
+              "selector": "h1.product-title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "price",
+              "selector": ".price",
+              "type": "price",
+              "required": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "k1",
+        "type": "check_page",
+        "position": {
+          "x": 0,
+          "y": 420
+        },
+        "config": {}
+      },
+      {
+        "id": "s1",
+        "type": "save_records",
+        "position": {
+          "x": 0,
+          "y": 540
+        },
+        "config": {
+          "dataset": "watched_prices",
+          "identity_key": "url",
+          "track_fields": [
+            "price"
+          ]
+        }
+      },
+      {
+        "id": "c1",
+        "type": "condition",
+        "position": {
+          "x": 0,
+          "y": 660
+        },
+        "config": {
+          "match": "all",
+          "rules": [
+            {
+              "field": "price",
+              "op": "drop_pct_gt",
+              "value": {
+                "var": "min_drop_pct"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "a1",
+        "type": "alert",
+        "position": {
+          "x": 0,
+          "y": 780
+        },
+        "config": {
+          "title": "Price dropped",
+          "level": "warning"
+        }
+      },
+      {
+        "id": "s2",
+        "type": "save_records",
+        "parentId": "l1",
+        "config": {
+          "dataset": "inner",
+          "track_fields": [
+            "price"
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e_t1_l1",
+        "source": "t1",
+        "target": "l1"
+      },
+      {
+        "id": "e_l1_b1",
+        "source": "l1",
+        "sourceHandle": "item",
+        "target": "b1"
+      },
+      {
+        "id": "e_b1_b2",
+        "source": "b1",
+        "target": "b2"
+      },
+      {
+        "id": "e_b2_l1",
+        "source": "b2",
+        "target": "l1",
+        "targetHandle": "next"
+      },
+      {
+        "id": "e_l1_k1",
+        "source": "l1",
+        "sourceHandle": "done",
+        "target": "k1"
+      },
+      {
+        "id": "e_k1_s1",
+        "source": "k1",
+        "target": "s1"
+      },
+      {
+        "id": "e_s1_c1",
+        "source": "s1",
+        "target": "c1"
+      },
+      {
+        "id": "e_c1_a1",
+        "source": "c1",
+        "sourceHandle": "true",
+        "target": "a1"
+      }
+    ]
+  }
+}

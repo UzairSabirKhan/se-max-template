@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Chai & Co. (demo shop){% endblock %}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #faf7f2; color: #222; }
+    header { background: #3b2f2a; color: #fff; padding: 12px 20px; display: flex; gap: 16px; align-items: baseline; }
+    header a { color: #f3d9b1; } main { padding: 20px; max-width: 980px; margin: auto; }
+    .notice { background: #fff3cd; border: 1px solid #e0c36c; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
+    #product-grid, .catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+    .product, .card { background: #fff; border: 1px solid #e6ddd0; border-radius: 10px; padding: 14px; }
+    .price, .amount { font-weight: 700; color: #7a3e00; } .stock, .availability { font-size: 13px; color: #555; }
+    .pager { margin-top: 18px; display: flex; gap: 12px; }
+  </style>
+</head>
+<body>
+  <header><strong>Chai &amp; Co.</strong> <span>Demo shop for ScrapeOnce. All products and prices are invented.</span>
+    <a href="/shop">Shop</a> <a href="/shop/admin">Admin</a></header>
+  <main>{% block content %}{% endblock %}</main>
+</body>
+</html>

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Shop admin | Chai & Co.{% endblock %}
+{% block content %}
+<h1>Shop admin (demo controls)</h1>
+<p class="notice">These buttons change the demo shop so you can watch ScrapeOnce react: a price change gives an
+alert, layout v2 gives "Site changed", blocked gives BLOCKED. Reset puts everything back.</p>
+
+<h2>Shop state</h2>
+<p>Layout: <strong>{{ state.layout }}</strong> · Mode: <strong>{{ state.mode }}</strong> ·
+Products shown: <strong>{{ state.visible() | length }} of {{ state.products | length }}</strong></p>
+<form method="post" action="/shop/admin/layout" style="display:inline">
+  <button name="layout" value="v1">Layout v1</button>
+  <button name="layout" value="v2">Layout v2 (price class renamed)</button>
+</form>
+<form method="post" action="/shop/admin/mode" style="display:inline">
+  {% for m in modes %}<button name="mode" value="{{ m }}">Mode: {{ m }}</button>{% endfor %}
+</form>
+<form method="post" action="/shop/admin/reset" style="display:inline"><button>Reset everything</button></form>
+
+<h2>Products</h2>
+<table>
+  <tr><th>Product</th><th>Price</th><th>Stock</th><th>Change price</th><th></th></tr>
+  {% for p in state.products %}
+  <tr>
+    <td>{{ p.title }}{% if p.slug in state.removed %} <em>(removed)</em>{% endif %}</td>
+    <td>{{ price(p.price) }}</td>
+    <td>{{ p.stock }}</td>
+    <td>
+      <form method="post" action="/shop/admin/price">
+        <input type="hidden" name="slug" value="{{ p.slug }}">
+        <input name="price" size="7" value="{{ p.price }}"> <button>Set</button>
+      </form>
+    </td>
+    <td>
+      <form method="post" action="/shop/admin/{{ 'restore' if p.slug in state.removed else 'remove' }}">
+        <input type="hidden" name="slug" value="{{ p.slug }}">
+        <button>{{ 'Restore' if p.slug in state.removed else 'Remove' }}</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h2>Test pages for the judges</h2>
+<ul>
+  <li><a href="/shop?layout=v2">/shop?layout=v2</a>: layout change</li>
+  <li><a href="/shop?mode=blocked">/shop?mode=blocked</a>: captcha page with status 200</li>
+  <li><a href="/shop?mode=js">/shop?mode=js</a>: JavaScript-only app shell</li>
+  <li><a href="/shop?mode=dupes">/shop?mode=dupes</a>: two items with the same SKU</li>
+  <li><a href="/shop/huge">/shop/huge</a>: a page over 2 MB</li>
+  <li><a href="/shop/slow">/shop/slow</a>: a server that drips one byte a second</li>
+  <li><a href="/shop/file.pdf">/shop/file.pdf</a>: not an HTML page</li>
+  <li>/shop/redirect-internal: redirects to the cloud metadata address 169.254.169.254</li>
+</ul>
+{% endblock %}

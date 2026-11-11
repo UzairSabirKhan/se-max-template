@@ -45,6 +45,9 @@ target/
 *.sqlite
 *.sqlite3
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
 
 # Logs and coverage
 *.log
@@ -57,3 +60,9 @@ htmlcov/
 Thumbs.db
 .idea/
 .vscode/
+
+# Browser automation output
+.playwright-mcp/
+
+# Scratch files from local smoke tests
+*.tmp
