@@ -1,45 +1,68 @@
+<div align="center">
+
 # ScrapeOnce
 
-> AI-Powered SE-MAX · CUI Tech Fest FA'26 · Team: LazyLoaders
+### AI-powered website monitoring without AI on every run
+
+**SE-MAX · CUI Tech Fest FA'26 · Team LazyLoaders**
 
 [![CI](https://github.com/muhammadusamahoyrr/ScrapeOne/actions/workflows/ci.yml/badge.svg)](https://github.com/muhammadusamahoyrr/ScrapeOne/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-22+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Deploy](https://img.shields.io/badge/Deploy-Railway-8B5CF6?logo=railway&logoColor=white)](https://scrapeonce-production-839d.up.railway.app)
 
-## What it does
+**Describe what to watch. Build a flow. Publish it. Get reliable alerts.**
 
-ScrapeOnce is a no-code builder for website-watching flows. You describe what to watch, and an AI assistant builds the flow on a canvas for you to review. Once you publish, the flow runs on its schedule with **no AI at all**, and it alerts you when prices change, new items appear, or the site's layout breaks.
+[Live Demo](https://scrapeonce-production-839d.up.railway.app) ·
+[Judge Checks](docs/judge-checks.md) ·
+[Requirements](docs/requirements.md)
 
-## Product demo video
+</div>
 
+---
+
+## Overview
+
+ScrapeOnce is a no-code website-monitoring builder for small sellers and shoppers.
+Describe what you want to monitor in plain language, and an AI assistant creates a
+validated workflow on a visual canvas.
+
+After you publish the workflow, every scheduled run uses deterministic rules with
+**no AI calls**. ScrapeOnce can notify you when:
+
+- Prices change
+- New items appear
+- Existing items disappear
+- A website layout changes or becomes unavailable
+
+> **Core idea:** AI builds the workflow once; predictable, explainable code runs it
+> every time after that.
+
+## Product Demo
 
 https://github.com/user-attachments/assets/8111b61c-e9c2-42f5-90db-241123c3fca4
 
-
 [![ScrapeOnce demo: the assistant builds a scholarship-watching flow from one sentence](docs/media/scrapeonce-demo.png)](docs/media/scrapeonce-demo.mp4)
 
-*One minute: we ask the assistant to watch a scholarship board. It fetches the page, tests its selectors, runs a test, and proposes the flow on the canvas for us to accept. Click the image to play the video ([MP4](docs/media/scrapeonce-demo.mp4), 1 MB).*
+> **One-minute walkthrough:** Ask the assistant to watch a scholarship board. It
+> fetches the page, tests selectors, runs a test, and proposes a flow on the canvas
+> for approval. Click the image above to play the video.
 
-### Home screen
+### Home Screen
 
-![ScrapeOnce home: describe what to watch, and see every flow with its status and alerts](docs/media/scrapeonce-home.png)
+![ScrapeOnce home: describe what to watch and see every flow with its status and alerts](docs/media/scrapeonce-home.png)
 
-*Describe what to watch in one sentence, or pick a suggestion. Every flow shows whether it is Live or a Draft, its new alerts, and when it last ran. The sidebar links to the Data page and our own demo sites.*
+Describe what to watch in one sentence or choose a suggestion. Each flow shows its
+status, recent alerts, and last run time. The sidebar links to the Data page and
+the project's demo sites.
 
-## Problem and user
-
-The user is a small seller or shopper who wants to know when competitors' prices move. They're not a developer: scraping scripts are out of reach, and paid monitoring tools are too expensive. Asking an AI every time is slow and costly, and it can't be trusted to notice when a page silently changes. ScrapeOnce uses AI only **once**, to set the flow up. Every run after that is plain rules: deterministic, cheap, and checked for breakage.
-
-## Live deployment
-
-- **URL:** https://scrapeonce-production-839d.up.railway.app (health check: [/health](https://scrapeonce-production-839d.up.railway.app/health))
-- **Platform:** Railway (primary), Render (backup). One Docker image serves the editor, the API and the mock shop.
-
-## How it works
+## How It Works
 
 ```mermaid
 flowchart TB
     subgraph BUILD["① Build once, with AI"]
         direction LR
-        A["Describe what<br/>to watch"] --> B["Assistant proposes steps<br/>and tests every selector"] --> C["You review<br/>and Accept"] --> D["Publish<br/>(test run must pass)"]
+        A["Describe what<br/>to watch"] --> B["Assistant proposes steps<br/>and tests every selector"] --> C["Review<br/>and Accept"] --> D["Publish<br/>(test must pass)"]
     end
     subgraph RUN["② Every run, zero AI"]
         direction LR
@@ -50,48 +73,73 @@ flowchart TB
     BUILD --> RUN
 ```
 
-- **AI builds, code runs.** The assistant only edits a draft through typed tools; every edit is validated and shown for you to accept. It cannot publish, run or delete. Published runs never call AI (`ai_calls: 0` on every run, proven by a test).
-- **Every run gets one verdict**, checked in this order: **Blocked** (error page, captcha) → **Unsupported** (needs JavaScript) → **Broken** (layout changed: fields missing, wrong item count, duplicates) → **Suspect** (a price moved more than 50%) → **Changed** / **OK**. A captcha page can never look like "all products removed", and a broken layout never stores empty prices.
-- **Steps:** Schedule, Fetch page, Paginate, Extract list, Loop (open each item's page), Condition, Wait, Check page, Save records, Alert, Results. Variables hold a list of links to watch. Each step's settings show the data available from earlier steps.
+### Key Principles
 
-## Safety
+- **AI builds, code runs.** The assistant edits drafts through typed tools. Every
+  edit is validated and shown for approval. It cannot publish, run, or delete.
+- **Published runs never call AI.** Every run reports `ai_calls: 0`.
+- **Every run has one clear verdict**, checked in this order:
+  **Blocked** → **Unsupported** → **Broken** → **Suspect** → **Changed / OK**.
+- **Broken pages do not corrupt data.** A CAPTCHA page cannot appear as “all
+  products removed,” and a broken layout never stores empty prices.
+- **Flows are visual and explainable.** Steps include scheduling, fetching,
+  pagination, extraction, loops, conditions, waiting, page checks, saving records,
+  alerts, and results.
 
-- **No internal requests:** http/https only; private, loopback and cloud-metadata addresses refused in any spelling, after DNS and on every redirect; the connection is pinned to the checked IP.
-- **Bounded:** 15 s per page, 2 MB (after decompression), HTML only, 2 s between requests to a site, 120 s per run, loops of at most 25 items.
-- **Flows are data, not code:** strict schema, fixed operators, no scripts, no regex, no templates; page text is treated as untrusted by the assistant.
-- **Honest scraping:** a clear User-Agent, no CAPTCHA solving or proxies; during the event we only scrape our own demo shop with invented products.
+## Safety and Reliability
 
-## Judge quick start (under 5 minutes)
+- **No internal requests:** only `http` and `https` are allowed. Private, loopback,
+  and cloud-metadata addresses are refused after DNS resolution and on every
+  redirect.
+- **Bounded execution:** 15 seconds per page, 2 MB after decompression, 2 seconds
+  between requests to one site, 120 seconds per run, and a maximum of 25 loop items.
+- **Flows are data, not code:** strict schemas, fixed operators, no scripts, no
+  regex, and no templates. Page text is treated as untrusted input.
+- **Honest scraping:** a clear User-Agent is used. CAPTCHA solving and proxies are
+  not supported.
+- **Demo-safe:** during the event, the project scrapes only its own mock shop with
+  invented products.
 
-1. Open the live URL. The flow list asks **"What should we watch for you?"**
-2. Click the suggestion **Track prices on the mock shop**. The assistant opens the mock shop, tests its selectors, and proposes the steps on the canvas in green.
-3. Review the proposal, press **Accept**, then **Publish**. Publishing runs a test first and refuses a broken flow.
-4. Press **Run now**. Each step lights up as it runs. The **Runs** tab shows the verdict, the evidence and **AI calls: 0**.
-5. In the mock shop's admin page (`/shop/admin`), change a price and press **Run now** again. An alert appears in the **Alerts** tab, for example "Blue Kettle: Rs 1,250 → Rs 1,099 (−12%)".
-6. Switch the shop to layout v2 in the admin page and run again. The run is marked **Broken**, nothing is saved, and the last good prices stay in the **Data** tab.
+## Live Deployment
 
-Step-by-step checks with what to look for are in [docs/judge-checks.md](docs/judge-checks.md).
+- **URL:** [scrapeonce-production-839d.up.railway.app](https://scrapeonce-production-839d.up.railway.app)
+- **Health check:** [`/health`](https://scrapeonce-production-839d.up.railway.app/health)
+- **Platform:** Railway primary, Render backup
+- **Runtime:** One Docker image serves the editor, API, and mock shop
 
-## Test accounts
+## Judge Quick Start
 
-None. There is no sign-in, so every visitor can use the app directly.
+You can evaluate the main flow in under five minutes:
 
-## What is built and what is not
+1. Open the [live demo](https://scrapeonce-production-839d.up.railway.app).
+2. Click **Track prices on the mock shop**.
+3. Review the proposed steps, click **Accept**, and then click **Publish**.
+4. Click **Run now** and inspect the step-by-step results.
+5. Open the **Runs** tab and verify the verdict and **AI calls: 0**.
+6. In `/shop/admin`, change a product price and run the flow again.
+7. Open **Alerts** and verify the price-change notification.
+8. Switch the mock shop to layout v2 and run it again.
+9. Confirm the run is marked **Broken**, no invalid data is stored, and the last
+   known-good prices remain available in **Data**.
+
+See the complete [step-by-step judge checks](docs/judge-checks.md).
+
+## Feature Status
 
 | Area | Status |
 |---|---|
-| Editor: flow list, canvas, step palette, settings forms, variables, test-run drawer, publish controls | Built |
-| Assistant: PydanticAI agent with 16 typed tools, Gemini / Groq / Claude fallback, edits shown as proposals to accept or reject, no publish tool | Built and tested with scripted models |
-| Flow schema and graph rules, flow storage with version checks | Built |
-| `safe_fetch` (URL and IP checks, redirects, size and time limits), normalisers, mock shop | Built |
-| Runner, `check_page` verdicts, `save_records`, conditions, alerts, scheduler, loops, paginate, SUSPECT, CSV export | Built |
-| Variables at run time (watch a list of links), data selector for step settings | Built |
-| PII value scan (FR-34; personal-data field NAMES are already refused) | Planned |
-| Browser steps (click, scroll, type) | Not planned: shown greyed out, refused at publish |
+| Editor: flow list, canvas, step palette, settings, variables, test drawer, publishing | ✅ Built |
+| Assistant: typed tools, model fallback, proposal review, no publish tool | ✅ Built and tested |
+| Flow schema, graph rules, storage, and version checks | ✅ Built |
+| Safe fetching, URL/IP checks, redirects, limits, normalisers, and mock shop | ✅ Built |
+| Runner, verdicts, records, conditions, alerts, scheduler, loops, pagination, CSV export | ✅ Built |
+| Runtime variables and data selector for step settings | ✅ Built |
+| PII value scan (FR-34) | 🟡 Planned |
+| Browser steps: click, scroll, and type | ⏸️ Not planned; shown disabled and refused at publish |
 
-The status of each requirement is in [docs/requirements.md](docs/requirements.md).
+The status of every requirement is documented in [docs/requirements.md](docs/requirements.md).
 
-## Run locally
+## Run Locally
 
 ### Prerequisites
 
@@ -105,69 +153,93 @@ uv sync
 npm --prefix web install
 ```
 
-### Environment variables
+### Environment Variables
 
-Copy `.env.example` to `.env` and fill in what you need. Names only, never commit values:
+Copy `.env.example` to `.env` and add only the values needed for your environment.
+Never commit secrets.
 
-| Name | Needed for |
+| Variable | Required for |
 |---|---|
-| `DATABASE_URL` | Postgres. Leave empty locally to use a SQLite file; required on Railway and Render |
-| `AI_MODEL`, `AI_FALLBACK_MODEL` | The assistant's models, e.g. `google:<gemini-model>`; the fallback may list several, comma-separated, such as `groq:<model>,anthropic:<claude-model>` |
-| `GEMINI_API_KEY`, `GROQ_API_KEY`, `ANTHROPIC_API_KEY` | Keys for the models above. Without any, the assistant shows "offline" and everything else works |
-| `GEMINI_API_KEY_2`, `GROQ_API_KEY_2`, `ANTHROPIC_API_KEY_2` | Optional second key per provider. When the first key fails (for example its quota runs out), the same model is tried with the second key before the next model |
-| `PUBLIC_BASE_URL` | The app's public URL (for mock shop links) |
+| `DATABASE_URL` | PostgreSQL. Leave empty locally to use SQLite; required on Railway and Render |
+| `AI_MODEL`, `AI_FALLBACK_MODEL` | The assistant's primary and fallback models |
+| `GEMINI_API_KEY`, `GROQ_API_KEY`, `ANTHROPIC_API_KEY` | Credentials for configured models |
+| `GEMINI_API_KEY_2`, `GROQ_API_KEY_2`, `ANTHROPIC_API_KEY_2` | Optional backup provider keys |
+| `PUBLIC_BASE_URL` | Public URL used for mock-shop links |
 
-### Run
+Without an AI key, the assistant displays **offline**, while the rest of the
+application remains usable.
+
+### Start the Application
 
 ```bash
 uv run uvicorn app.main:app --port 8000 --workers 1
 ```
 
+In a second terminal:
+
 ```bash
 npm --prefix web run dev
 ```
 
-Open http://localhost:5173. The dev server forwards `/api`, `/health` and `/shop` to port 8000. To work on the UI without the backend, set `VITE_API_MODE=mock` in `web/.env`.
+Open [http://localhost:5173](http://localhost:5173). The development server
+forwards `/api`, `/health`, and `/shop` to port 8000.
 
-### Run tests
+To work on the UI without the backend, set `VITE_API_MODE=mock` in `web/.env`.
+
+### Run Tests
 
 ```bash
 bash scripts/test.sh
-```
-
-This runs ruff and every test except `live` ones (those call a real model and need AI keys). Frontend type check and build:
-
-```bash
 npm --prefix web run build
 ```
 
-### Deploy
+The test script runs Ruff and all tests except `live` tests, which require real
+model credentials.
 
-The `Dockerfile` builds the editor and runs FastAPI with one worker (the scheduler runs inside the app). On Railway:
+## Deployment
 
-1. Add a PostgreSQL database to the project.
-2. On the web service, set `DATABASE_URL` to `${{Postgres.DATABASE_URL}}`, plus `PUBLIC_BASE_URL` and the AI variables. Any public site can be tracked.
-3. Deploy. `/health` returns `{"status":"ok","database":"ok"}` when it's up.
+The `Dockerfile` builds the editor and runs FastAPI with one worker. The scheduler
+runs inside the application.
 
-The app refuses to start on a host without `DATABASE_URL`, because the host's disk is wiped on every deploy and saved flows would be lost.
+1. Add a PostgreSQL database to the Railway project.
+2. Set `DATABASE_URL` to `${{Postgres.DATABASE_URL}}`.
+3. Configure `PUBLIC_BASE_URL` and the required AI variables.
+4. Deploy and verify that `/health` returns:
+
+   ```json
+   {"status":"ok","database":"ok"}
+   ```
+
+The application requires `DATABASE_URL` in hosted environments because the host
+disk is wiped between deployments.
 
 ## Quality
 
-- **451 automated tests** (`bash scripts/test.sh`), run by GitHub Actions on every push. They cover the judges' checks: internal URLs refused, no AI during runs, a layout change raising "Site changed" with nothing stored, the same page giving the same output 20 times, and bad input (huge or slow pages, malformed AI replies) handled without crashing.
-- Every defect we found, including the AI's own mistakes, is in [docs/testing.md](docs/testing.md); how AI was used is in [docs/ai-usage-log.md](docs/ai-usage-log.md).
+- **451 automated tests** run by GitHub Actions on every push.
+- Tests cover internal URL refusal, zero-AI runs, layout-change detection,
+  deterministic repeated output, oversized or slow pages, and malformed AI replies.
+- Defects and test details are recorded in [docs/testing.md](docs/testing.md).
+- AI usage is documented in [docs/ai-usage-log.md](docs/ai-usage-log.md).
 
-## Related work
+## Known Limitations
 
-Generating a scraper once and running it without AI is not new: **Crawlr** and **harvest-agent** (as noted by the committee) generate selectors once, **Crawl4AI** does it as a library, and **Parsera** and **Kadoa** offer it as paid services. Those repair scrapers automatically and leave failures unexplained; change monitors such as Visualping and Distill are known for false alerts.
+- Static HTML only. JavaScript-rendered pages are reported as **Unsupported**.
+- A recorded real-model response is still to be added:
+  `uv run pytest -m live -k capture`.
+- There is no sign-in, so anyone with the URL can view and edit flows.
+- The assistant rate limit is stored in memory and resets when the app restarts.
 
-ScrapeOnce's difference: a **no-code editor and assistant for non-developers**, **every change approved by the user** after a validated test run, and **every run explained** by one verdict with evidence.
+## Related Work
 
-## Known limitations
+Generating a scraper once and running it without AI is not new. Related projects
+include **Crawlr**, **harvest-agent**, **Crawl4AI**, **Parsera**, and **Kadoa**.
 
-- Static HTML only. Pages that build themselves with JavaScript are reported as **Unsupported**, not scraped.
-- The assistant is checked by tests with scripted model replies. A recorded real-model reply is still to be added (`uv run pytest -m live -k capture`, with AI keys).
-- No sign-in: anyone with the URL can see and edit every flow. Fine for a judged demo, not for real users.
-- The assistant's rate limit (10 messages a minute per client) is kept in memory, so it resets when the app restarts.
+ScrapeOnce focuses on:
+
+1. A no-code editor and assistant for non-developers.
+2. User approval after a validated test run.
+3. A clear verdict and evidence for every run.
+4. Deterministic execution without AI after publication.
 
 ## Documentation
 
@@ -176,12 +248,18 @@ ScrapeOnce's difference: a **no-code editor and assistant for non-developers**, 
 - [Testing](docs/testing.md)
 - [AI usage log](docs/ai-usage-log.md)
 - [Judge checks](docs/judge-checks.md)
-- [Contracts between the two workstreams](specs/contracts.md) and [workstreams](specs/workstreams.md)
+- [Contracts](specs/contracts.md)
+- [Workstreams](specs/workstreams.md)
 - [Architecture decisions](specs/adr/)
 
 ## Team
 
-| Name | Role |
-|------|------|
-| Muhammad Usama | Workstream A: engine, platform, database, deploy |
-| Kaleem Hassan | Workstream B: editor, assistant, docs and demo |
+| Member | Responsibility |
+|---|---|
+| **Muhammad Usama** | Backend engine, scraping safety, runner, database, deployment, and infrastructure |
+| **Kaleem Hassan** | Frontend editor, visual canvas, flow settings, assistant integration, and user experience |
+| **Umar Hassan** | Testing and quality assurance, documentation, demo preparation, requirements tracking, and project presentation |
+
+## License
+
+This project was created for **CUI Tech Fest FA'26** by **Team LazyLoaders**.
